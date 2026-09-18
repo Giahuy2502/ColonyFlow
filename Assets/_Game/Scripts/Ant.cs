@@ -15,12 +15,15 @@ namespace ColonyFlow
     {
         [SerializeField, Min(0.1f)] private float moveSpeed = 2.5f;
         [SerializeField, Min(0.01f)] private float arrivalDistance = 0.03f;
-        [SerializeField] private Renderer bodyRenderer;
+        [SerializeField] private Renderer[] bodyRenderers;
+        [SerializeField] private GameObject carriedPixelVisual;
+        [SerializeField] private Renderer carriedPixelRenderer;
 
         private readonly List<Vector3> route = new List<Vector3>(64);
         private AntManager owner;
         private ColonyTask task;
         private Vector3 targetPosition;
+        private float movementPlaneY;
         private int waypointIndex;
         private MaterialPropertyBlock propertyBlock;
 
@@ -44,11 +47,15 @@ namespace ColonyFlow
             owner = manager;
             EnsureResources();
             task = assignedTask;
+            movementPlaneY = startLocalPosition.y;
+            startLocalPosition.y = movementPlaneY;
+            targetLocalPosition.y = movementPlaneY;
             transform.localPosition = startLocalPosition;
             targetPosition = targetLocalPosition;
             CopyRoute(outboundRoute);
             State = AntState.MovingToTarget;
-            ApplyColor(assignedTask.Color);
+            ApplyBodyColor(assignedTask.Color);
+            SetCarriedPixelVisible(false);
             gameObject.SetActive(true);
         }
 
@@ -56,6 +63,8 @@ namespace ColonyFlow
         {
             CopyRoute(returnRoute);
             State = AntState.ReturningToHole;
+            ApplyRendererColor(carriedPixelRenderer, task.Color);
+            SetCarriedPixelVisible(true);
         }
 
         internal void ReturnToPool()
@@ -65,6 +74,7 @@ namespace ColonyFlow
             owner = null;
             task = default;
             State = AntState.Pooled;
+            SetCarriedPixelVisible(false);
             gameObject.SetActive(false);
         }
 
@@ -80,6 +90,13 @@ namespace ColonyFlow
             }
 
             Vector3 destination = waypointIndex < route.Count ? route[waypointIndex] : targetPosition;
+            destination.y = movementPlaneY;
+            Vector3 currentPosition = transform.localPosition;
+            if (!Mathf.Approximately(currentPosition.y, movementPlaneY))
+            {
+                currentPosition.y = movementPlaneY;
+                transform.localPosition = currentPosition;
+            }
             Vector3 offset = destination - transform.localPosition;
             if (offset.sqrMagnitude > arrivalDistance * arrivalDistance)
             {
@@ -104,19 +121,41 @@ namespace ColonyFlow
         {
             route.Clear();
             if (source != null)
-                route.AddRange(source);
+            {
+                for (int i = 0; i < source.Count; i++)
+                {
+                    Vector3 waypoint = source[i];
+                    waypoint.y = movementPlaneY;
+                    route.Add(waypoint);
+                }
+            }
             waypointIndex = 0;
         }
 
-        private void ApplyColor(PixelColor color)
+        private void ApplyRendererColor(Renderer targetRenderer, PixelColor color)
         {
-            if (bodyRenderer == null)
+            if (targetRenderer == null)
                 return;
             Color tint = PixelColorUtility.ToUnityColor(color);
-            bodyRenderer.GetPropertyBlock(propertyBlock);
+            targetRenderer.GetPropertyBlock(propertyBlock);
             propertyBlock.SetColor("_BaseColor", tint);
             propertyBlock.SetColor("_Color", tint);
-            bodyRenderer.SetPropertyBlock(propertyBlock);
+            targetRenderer.SetPropertyBlock(propertyBlock);
+        }
+
+        private void ApplyBodyColor(PixelColor color)
+        {
+            if (bodyRenderers == null)
+                return;
+
+            for (int i = 0; i < bodyRenderers.Length; i++)
+                ApplyRendererColor(bodyRenderers[i], color);
+        }
+
+        private void SetCarriedPixelVisible(bool visible)
+        {
+            if (carriedPixelVisual != null && carriedPixelVisual.activeSelf != visible)
+                carriedPixelVisual.SetActive(visible);
         }
 
         private void EnsureResources()

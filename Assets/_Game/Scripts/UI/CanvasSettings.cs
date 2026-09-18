@@ -5,11 +5,14 @@ namespace ColonyFlow
     public sealed class CanvasSettings : UICanvas
     {
         [SerializeField] private GameObject gameplayButtons;
+        private float previousTimeScale = 1f;
 
         public override void Open()
         {
             if (gameplayButtons != null)
                 gameplayButtons.SetActive(true);
+            if (Time.timeScale > 0f)
+                previousTimeScale = Time.timeScale;
             Time.timeScale = 0f;
             base.Open();
         }
@@ -34,7 +37,7 @@ namespace ColonyFlow
 
         public override void CloseDirectly()
         {
-            Time.timeScale = 1f;
+            Time.timeScale = previousTimeScale;
             base.CloseDirectly();
         }
     }

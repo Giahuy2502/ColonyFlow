@@ -69,7 +69,19 @@ namespace ColonyFlow
                 return null;
             }
 
-            T canvas = Instantiate(prefab, canvasParent) as T;
+            T canvas = Instantiate(prefab, canvasParent, false) as T;
+            RectTransform canvasRect = canvas.transform as RectTransform;
+            if (canvasRect != null)
+            {
+                canvasRect.localScale = Vector3.one;
+                canvasRect.localRotation = Quaternion.identity;
+                canvasRect.anchorMin = Vector2.zero;
+                canvasRect.anchorMax = Vector2.one;
+                canvasRect.pivot = new Vector2(0.5f, 0.5f);
+                canvasRect.anchoredPosition3D = Vector3.zero;
+                canvasRect.offsetMin = Vector2.zero;
+                canvasRect.offsetMax = Vector2.zero;
+            }
             activeByType[typeof(T)] = canvas;
             return canvas;
         }

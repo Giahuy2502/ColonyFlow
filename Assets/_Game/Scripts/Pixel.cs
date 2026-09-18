@@ -20,8 +20,13 @@ namespace ColonyFlow
         // Only the board changes logical state and updates its counters.
         internal void Initialize(PixelData data)
         {
-            Position = data.Position;
-            Color = data.Color;
+            Initialize(data.Position, data.Color);
+        }
+
+        internal void Initialize(Vector2Int position, PixelColor color)
+        {
+            Position = position;
+            Color = color;
             State = PixelState.Present;
 
             if (visual != null)

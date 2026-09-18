@@ -11,11 +11,13 @@ namespace ColonyFlow.Editor
     [InitializeOnLoad]
     internal static class ColonyFlowUiBuilder
     {
-        private const string VersionName = "Colony Flow UI v3";
+        private const string VersionName = "Colony Flow UI v6";
         private static readonly Color Navy = new Color(0.12f, 0.22f, 0.38f, 0.97f);
         private static readonly Color Cream = new Color(1f, 0.93f, 0.78f, 1f);
         private static readonly Color Orange = new Color(1f, 0.63f, 0.20f, 1f);
         private static readonly Color Blue = new Color(0.20f, 0.58f, 0.95f, 1f);
+        private static readonly Color Purple = new Color(0.66f, 0.31f, 0.84f, 0.96f);
+        private static readonly Color Brown = new Color(0.25f, 0.15f, 0.08f, 1f);
         private static readonly Color Overlay = new Color(0.05f, 0.08f, 0.14f, 0.72f);
 
         static ColonyFlowUiBuilder()
@@ -61,42 +63,32 @@ namespace ColonyFlow.Editor
             Stretch(safe);
             SetSafeArea(controller, safe);
 
-            RectTransform top = CreatePanel("Top Bar", safe, Navy);
+            RectTransform top = CreateRect("Top Bar", safe);
             SetRect(top, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -92f), new Vector2(1010f, 128f));
+                new Vector2(0f, -82f), new Vector2(1010f, 120f));
 
-            Button pause = CreateButton("Pause", top, new Vector2(-405f, 0f), new Vector2(108f, 88f),
-                "Ⅱ", Cream, Navy);
+            Button pause = CreateButton("Pause", top, new Vector2(-438f, 0f), new Vector2(84f, 84f),
+                "Ⅱ", Color.white, Purple);
             UnityEventTools.AddPersistentListener(pause.onClick, controller.SettingButton);
 
-            TextMeshProUGUI level = CreateText("Level", top, "LEVEL 1", 48, Color.white);
+            TextMeshProUGUI level = CreateText("Level", top, "Level 1", 46, Brown);
             SetRect(level.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(450f, 90f));
 
-            Button speed = CreateButton("Speed", top, new Vector2(405f, 0f), new Vector2(108f, 88f),
-                "1x", Cream, Navy);
+            Button speed = CreateButton("Speed", top, new Vector2(420f, 0f), new Vector2(150f, 82f),
+                "1x", Color.white, new Color(0.48f, 0.53f, 0.56f, 1f));
             UnityEventTools.AddPersistentListener(speed.onClick, controller.SpeedButton);
 
-            RoundedFrameGraphic frame = CreateFrame("Board Frame", safe, Cream, 42f, 10f);
-            SetRect(frame.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -570f), new Vector2(850f, 760f));
-            frame.raycastTarget = false;
-
-            TextMeshProUGUI trayHint = CreateText("Tray Label", safe, "COLONY TRAY", 28,
-                new Color(1f, 1f, 1f, 0.72f));
-            SetRect(trayHint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 535f), new Vector2(500f, 52f));
-
-            RectTransform boosters = CreatePanel("Boosters", safe, Navy);
+            RectTransform boosters = CreateRoundedPanel("Boosters", safe, Purple, 54f);
             SetRect(boosters, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 118f), new Vector2(1010f, 190f));
+                new Vector2(0f, 78f), new Vector2(1080f, 156f));
             string[] icons = { "↶", "↻", "◎", "✦" };
             string[] names = { "UNDO", "SHUFFLE", "MAGNET", "PAINT" };
             for (int i = 0; i < icons.Length; i++)
             {
-                float x = (i - 1.5f) * 220f;
-                Button button = CreateButton(names[i], boosters, new Vector2(x, 15f),
-                    new Vector2(150f, 126f), icons[i], Cream, Blue);
+                float x = (i - 1.5f) * 225f;
+                Button button = CreateButton(names[i], boosters, new Vector2(x, 28f),
+                    new Vector2(132f, 132f), icons[i], Brown, Cream);
                 TextMeshProUGUI count = CreateText("Count", button.transform, "1", 23, Color.white);
                 count.alignment = TextAlignmentOptions.Center;
                 SetRect(count.rectTransform, new Vector2(1f, 0f), new Vector2(1f, 0f),
@@ -172,7 +164,8 @@ namespace ColonyFlow.Editor
             SetSafeArea(controller, safe);
             RectTransform dim = CreatePanel("Dim", safe, Overlay);
             Stretch(dim);
-            RectTransform card = CreatePanel("Card", safe, new Color(1f, 0.86f, 0.63f, 1f));
+            RectTransform card = CreateRoundedPanel("Card", safe,
+                new Color(1f, 0.86f, 0.63f, 1f), 58f);
             SetRect(card, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(760f, 760f));
             title = CreateText("Title", card, heading, 62, Navy);
@@ -205,10 +198,25 @@ namespace ColonyFlow.Editor
             return rect;
         }
 
+        private static RectTransform CreateRoundedPanel(string name, Transform parent,
+            Color color, float radius)
+        {
+            RectTransform rect = CreateRect(name, parent);
+            rect.gameObject.AddComponent<CanvasRenderer>();
+            RoundedFrameGraphic graphic = rect.gameObject.AddComponent<RoundedFrameGraphic>();
+            graphic.color = color;
+            SerializedObject serialized = new SerializedObject(graphic);
+            serialized.FindProperty("cornerRadius").floatValue = radius;
+            serialized.FindProperty("filled").boolValue = true;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            return rect;
+        }
+
         private static RoundedFrameGraphic CreateFrame(string name, Transform parent, Color color,
             float radius, float thickness)
         {
             RectTransform rect = CreateRect(name, parent);
+            rect.gameObject.AddComponent<CanvasRenderer>();
             RoundedFrameGraphic frame = rect.gameObject.AddComponent<RoundedFrameGraphic>();
             frame.color = color;
             SerializedObject serialized = new SerializedObject(frame);
@@ -221,10 +229,22 @@ namespace ColonyFlow.Editor
         private static Button CreateButton(string name, Transform parent, Vector2 position,
             Vector2 size, string label, Color textColor, Color background)
         {
-            RectTransform rect = CreatePanel(name, parent, background);
+            float radius = Mathf.Min(size.x, size.y) * 0.28f;
+            RectTransform shadow = CreateRoundedPanel(name + " Shadow", parent,
+                new Color(0.18f, 0.13f, 0.16f, 0.34f), radius);
+            SetRect(shadow, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                position + new Vector2(0f, -7f), size);
+            shadow.GetComponent<RoundedFrameGraphic>().raycastTarget = false;
+
+            RectTransform rect = CreateRoundedPanel(name, parent, background, radius);
             SetRect(rect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), position, size);
             Button button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = rect.GetComponent<Image>();
+            button.targetGraphic = rect.GetComponent<RoundedFrameGraphic>();
+
+            RoundedFrameGraphic outline = CreateFrame("Outline", rect,
+                new Color(1f, 1f, 1f, 0.82f), radius, 5f);
+            Stretch(outline.rectTransform);
+            outline.raycastTarget = false;
             TextMeshProUGUI text = CreateText("Label", rect, label, 34, textColor);
             Stretch(text.rectTransform);
             return button;

@@ -7,7 +7,10 @@ namespace ColonyFlow
     public enum GeneratedPixelPattern : byte
     {
         Watermelon,
-        FilledBoard
+        FilledBoard,
+        RainbowRings,
+        CandySpiral,
+        Mosaic
     }
 
     [CreateAssetMenu(fileName = "Level_", menuName = "Colony Flow/Level Data")]
@@ -167,20 +170,70 @@ namespace ColonyFlow
 
             float nx = ((x + 0.5f) / width - 0.5f) * 2f;
             float ny = ((y + 0.5f) / height - 0.5f) * 2f;
-            float radius = nx * nx / 0.92f + ny * ny / 0.78f;
-            if (radius > 1f)
+            float radiusSquared = nx * nx / 0.92f + ny * ny / 0.78f;
+            if (radiusSquared > 1f)
             {
                 color = default;
                 return false;
             }
 
-            if (radius > 0.72f)
+            if (pattern == GeneratedPixelPattern.RainbowRings)
+            {
+                PixelColor[] palette =
+                {
+                    PixelColor.Cyan, PixelColor.Blue, PixelColor.Purple,
+                    PixelColor.Red, PixelColor.Orange, PixelColor.Yellow,
+                    PixelColor.Green, PixelColor.White
+                };
+                float radius = Mathf.Sqrt(radiusSquared);
+                int ring = Mathf.Clamp(Mathf.FloorToInt((1f - radius) * 8f), 0, palette.Length - 1);
+                int shimmer = Hash(x / 2, y / 2) % 7 == 0 ? 1 : 0;
+                color = palette[(ring + shimmer) % palette.Length];
+                return true;
+            }
+
+            if (pattern == GeneratedPixelPattern.CandySpiral)
+            {
+                PixelColor[] palette =
+                {
+                    PixelColor.Red, PixelColor.White, PixelColor.Cyan,
+                    PixelColor.Yellow, PixelColor.Purple, PixelColor.Orange
+                };
+                float radius = Mathf.Sqrt(radiusSquared);
+                float angle = Mathf.Atan2(ny, nx) / (Mathf.PI * 2f) + 0.5f;
+                int stripe = Mathf.FloorToInt(angle * 12f + radius * 13f);
+                color = palette[PositiveModulo(stripe, palette.Length)];
+                return true;
+            }
+
+            if (pattern == GeneratedPixelPattern.Mosaic)
+            {
+                PixelColor[] palette =
+                {
+                    PixelColor.Blue, PixelColor.Cyan, PixelColor.Green,
+                    PixelColor.Yellow, PixelColor.Orange, PixelColor.Red,
+                    PixelColor.Purple, PixelColor.White, PixelColor.Black
+                };
+                int cellX = x / 3;
+                int cellY = y / 3;
+                int index = Hash(cellX, cellY) + cellX * 3 + cellY * 5;
+                color = palette[PositiveModulo(index, palette.Length)];
+                return true;
+            }
+
+            if (radiusSquared > 0.72f)
                 color = PixelColor.Green;
             else if (Hash(x, y) % 29 == 0)
                 color = PixelColor.Purple;
             else
                 color = PixelColor.Red;
             return true;
+        }
+
+        private static int PositiveModulo(int value, int divisor)
+        {
+            int result = value % divisor;
+            return result < 0 ? result + divisor : result;
         }
 
         private int Hash(int x, int y)

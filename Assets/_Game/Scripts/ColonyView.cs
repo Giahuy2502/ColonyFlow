@@ -7,6 +7,7 @@ namespace ColonyFlow
     public sealed class ColonyView : MonoBehaviour
     {
         [SerializeField] private Renderer bodyRenderer;
+        [SerializeField] private Renderer topRenderer;
         [SerializeField] private TextMesh countText;
         [SerializeField] private Renderer countRenderer;
         [SerializeField] private Collider clickCollider;
@@ -145,10 +146,28 @@ namespace ColonyFlow
                 return;
 
             Color tint = PixelColorUtility.ToUnityColor(colony.Color);
+            Color sideTint = Color.Lerp(tint, Color.black, 0.14f);
             bodyRenderer.GetPropertyBlock(propertyBlock);
-            propertyBlock.SetColor(BaseColorId, tint);
-            propertyBlock.SetColor(ColorId, tint);
+            propertyBlock.SetColor(BaseColorId, sideTint);
+            propertyBlock.SetColor(ColorId, sideTint);
             bodyRenderer.SetPropertyBlock(propertyBlock);
+
+            if (topRenderer != null)
+            {
+                topRenderer.GetPropertyBlock(propertyBlock);
+                propertyBlock.SetColor(BaseColorId, tint);
+                propertyBlock.SetColor(ColorId, tint);
+                topRenderer.SetPropertyBlock(propertyBlock);
+            }
+
+            if (countText != null)
+            {
+                bool useDarkText = colony.Color == PixelColor.White ||
+                    colony.Color == PixelColor.Yellow || colony.Color == PixelColor.Cyan;
+                countText.color = useDarkText
+                    ? new Color(0.16f, 0.12f, 0.10f, 1f)
+                    : Color.white;
+            }
         }
     }
 }

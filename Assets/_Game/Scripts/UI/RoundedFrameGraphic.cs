@@ -3,12 +3,13 @@ using UnityEngine.UI;
 
 namespace ColonyFlow
 {
-    [DisallowMultipleComponent]
+    [RequireComponent(typeof(CanvasRenderer)), DisallowMultipleComponent]
     public sealed class RoundedFrameGraphic : MaskableGraphic
     {
         [SerializeField, Min(1f)] private float cornerRadius = 36f;
         [SerializeField, Min(1f)] private float thickness = 8f;
         [SerializeField, Range(2, 12)] private int cornerSegments = 6;
+        [SerializeField] private bool filled;
 
         protected override void OnPopulateMesh(VertexHelper vh)
         {
@@ -19,6 +20,24 @@ namespace ColonyFlow
             Rect inner = new Rect(rect.xMin + thickness, rect.yMin + thickness,
                 Mathf.Max(0f, rect.width - thickness * 2f), Mathf.Max(0f, rect.height - thickness * 2f));
             int count = cornerSegments * 4;
+
+            if (filled)
+            {
+                AddVertex(vh, rect.center);
+                for (int i = 0; i < count; i++)
+                {
+                    float angle = (i / (float)count) * Mathf.PI * 2f;
+                    Vector2 direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                    Vector2 center = CornerCenter(rect, direction, radius);
+                    AddVertex(vh, center + direction * radius);
+                }
+                for (int i = 0; i < count; i++)
+                {
+                    int next = (i + 1) % count;
+                    vh.AddTriangle(0, next + 1, i + 1);
+                }
+                return;
+            }
 
             for (int i = 0; i < count; i++)
             {

@@ -180,7 +180,7 @@ namespace ColonyFlow
             float startX = center - (trayCapacity - 1) * spacing * 0.5f;
             for (int i = 0; i < trayCapacity; i++)
             {
-                Vector3 position = new Vector3(startX + i * spacing, 0f, -2.3f);
+                Vector3 position = new Vector3(startX + i * spacing, 0f, -2.65f);
                 trayPositions.Add(position + Vector3.up * 0.35f);
                 Transform slot = Instantiate(traySlotPrefab, tray.transform);
                 slot.name = $"Tray Slot {i + 1}";
@@ -268,7 +268,7 @@ namespace ColonyFlow
 
         private static Vector3 ColumnPosition(float startX, float spacing, int column, int depth)
         {
-            return new Vector3(startX + column * spacing, 0.35f, -3.6f - depth * 1f);
+            return new Vector3(startX + column * spacing, 0.35f, -3.85f - depth * 0.92f);
         }
     }
 }

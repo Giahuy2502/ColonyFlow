@@ -1,6 +1,9 @@
 using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 namespace ColonyFlow
 {
@@ -86,6 +89,43 @@ namespace ColonyFlow
             if (antManager != null)
                 antManager.CancelAll();
         }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private void Update()
+        {
+            if (!isConfigured)
+                return;
+
+#if ENABLE_INPUT_SYSTEM
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null)
+                return;
+
+            if (keyboard.leftBracketKey.wasPressedThisFrame)
+                LoadLevel(Mathf.Max(0, CurrentLevelIndex - 1));
+            else if (keyboard.rightBracketKey.wasPressedThisFrame)
+                LoadLevel(Mathf.Min(levelCount - 1, CurrentLevelIndex + 1));
+            else if (keyboard.rKey.wasPressedThisFrame)
+                RestartLevel();
+            else if (keyboard.digit1Key.wasPressedThisFrame) LoadLevelByDisplayNumber(1);
+            else if (keyboard.digit2Key.wasPressedThisFrame) LoadLevelByDisplayNumber(2);
+            else if (keyboard.digit3Key.wasPressedThisFrame) LoadLevelByDisplayNumber(3);
+            else if (keyboard.digit4Key.wasPressedThisFrame) LoadLevelByDisplayNumber(4);
+            else if (keyboard.digit5Key.wasPressedThisFrame) LoadLevelByDisplayNumber(5);
+            else if (keyboard.digit6Key.wasPressedThisFrame) LoadLevelByDisplayNumber(6);
+            else if (keyboard.digit7Key.wasPressedThisFrame) LoadLevelByDisplayNumber(7);
+            else if (keyboard.digit8Key.wasPressedThisFrame) LoadLevelByDisplayNumber(8);
+            else if (keyboard.digit9Key.wasPressedThisFrame) LoadLevelByDisplayNumber(9);
+#endif
+        }
+
+        private void LoadLevelByDisplayNumber(int displayNumber)
+        {
+            int index = displayNumber - 1;
+            if (index >= 0 && index < levelCount)
+                LoadLevel(index);
+        }
+#endif
 
         public void RestartLevel()
         {

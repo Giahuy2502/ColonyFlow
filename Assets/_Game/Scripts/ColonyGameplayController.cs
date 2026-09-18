@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 namespace ColonyFlow
@@ -38,11 +39,15 @@ namespace ColonyFlow
         [Header("Prototype without Ant")]
         [SerializeField] private bool simulateTasks;
         [SerializeField, Min(0.01f)] private float simulatedTaskInterval = 0.1f;
+        [SerializeField, Min(0f)] private float deadlockConfirmationDelay = 0.75f;
 
         private readonly Dictionary<int, ColonyTask> activeTasks = new Dictionary<int, ColonyTask>();
         private readonly List<Colony> trayColonies = new List<Colony>();
         private int nextTaskId = 1;
         private float simulationTimer;
+        private float deadlockCandidateSince;
+        private bool deadlockCandidate;
+        private AntManager antManager;
 
         public LevelState State { get; private set; } = LevelState.Waiting;
         public int ActiveTaskCount => activeTasks.Count;
@@ -87,6 +92,17 @@ namespace ColonyFlow
             simulatedTaskInterval = Mathf.Max(0.01f, taskInterval);
         }
 
+        public void RegisterAntManager(AntManager manager)
+        {
+            antManager = manager;
+        }
+
+        public void ReevaluateProgress()
+        {
+            EvaluateAllColonies();
+            EvaluateProgress();
+        }
+
         private void OnDestroy()
         {
             if (board != null)
@@ -99,6 +115,9 @@ namespace ColonyFlow
         private void Update()
         {
             HandlePointerInput();
+
+            if (deadlockCandidate && State == LevelState.Playing)
+                EvaluateProgress();
 
             if (State != LevelState.Playing || !simulateTasks)
                 return;
@@ -123,6 +142,18 @@ namespace ColonyFlow
                 pointerPosition = Touchscreen.current.primaryTouch.position.ReadValue();
             else
                 return;
+
+            if (EventSystem.current != null)
+            {
+                bool pointerOverUi = Mouse.current != null &&
+                                     Mouse.current.leftButton.wasPressedThisFrame
+                    ? EventSystem.current.IsPointerOverGameObject()
+                    : Touchscreen.current != null &&
+                      EventSystem.current.IsPointerOverGameObject(
+                          Touchscreen.current.primaryTouch.touchId.ReadValue());
+                if (pointerOverUi)
+                    return;
+            }
 
             Ray ray = inputCamera.ScreenPointToRay(pointerPosition);
             if (Physics.Raycast(ray, out RaycastHit hit, 100f) &&
@@ -260,30 +291,58 @@ namespace ColonyFlow
                 return;
             if (board.IsCompleted)
             {
+                CancelDeadlockCheck();
                 SetState(LevelState.Victory);
                 return;
             }
-            if (activeTasks.Count > 0)
+            if (activeTasks.Count > 0 || (antManager != null && antManager.ActiveCount > 0))
+            {
+                CancelDeadlockCheck();
                 return;
+            }
 
             tray.CopyColonies(trayColonies);
             for (int i = 0; i < trayColonies.Count; i++)
             {
                 Colony colony = trayColonies[i];
                 if (colony.State == ColonyState.MovingToTray)
+                {
+                    CancelDeadlockCheck();
                     return;
+                }
                 if (colony.CanReceiveTask && board.HasAvailablePixel(colony.Color))
+                {
+                    CancelDeadlockCheck();
                     return;
+                }
             }
 
             if (tray.HasFreeSlot)
             {
                 for (int i = 0; i < columns.Count; i++)
                     if (columns[i] != null && columns[i].HasColony)
+                    {
+                        CancelDeadlockCheck();
                         return;
+                    }
             }
 
+            if (!deadlockCandidate)
+            {
+                deadlockCandidate = true;
+                deadlockCandidateSince = Time.time;
+                return;
+            }
+            if (Time.time - deadlockCandidateSince < deadlockConfirmationDelay)
+                return;
+
+            deadlockCandidate = false;
             SetState(LevelState.Failed);
+        }
+
+        private void CancelDeadlockCheck()
+        {
+            deadlockCandidate = false;
         }
 
         private void OnBoardCompleted()

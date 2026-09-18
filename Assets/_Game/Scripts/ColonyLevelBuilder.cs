@@ -34,7 +34,9 @@ namespace ColonyFlow
     {
         [Header("Required references")]
         [SerializeField] private ColonyLevelData levelData;
+        [SerializeField] private List<ColonyLevelData> levels = new List<ColonyLevelData>();
         [SerializeField] private PixelBoard board;
+        [SerializeField] private LevelManager levelManager;
         [SerializeField] private Camera gameplayCamera;
         [SerializeField] private Colony colonyPrefab;
         [SerializeField] private ColonyColumn columnPrefab;
@@ -61,6 +63,7 @@ namespace ColonyFlow
         private ColonyTray tray;
         private ColonyGameplayController controller;
         private Transform antHole;
+        private int loadedLevelIndex;
 
         private void Awake()
         {
@@ -70,7 +73,11 @@ namespace ColonyFlow
                 return;
             }
 
-            ApplyLevelData();
+            if (!ApplyLevelData())
+            {
+                enabled = false;
+                return;
+            }
             controller = Instantiate(controllerPrefab, transform);
             controller.name = "Colony Gameplay Controller";
             tray = Instantiate(trayPrefab, transform);
@@ -84,6 +91,8 @@ namespace ColonyFlow
             AntManager antManager = Instantiate(antManagerPrefab, transform);
             antManager.name = "Ant Manager";
             antManager.Configure(board, controller, antHole);
+            levelManager.Configure(controller, antManager,
+                levels.Count > 0 ? levels.Count : 1, loadedLevelIndex);
             InitializeViews();
             tray.ColonyAdded += OnColonyAdded;
             tray.ColonyRemoved += OnColonyRemoved;
@@ -99,7 +108,8 @@ namespace ColonyFlow
 
         private bool ValidateReferences()
         {
-            if (board != null && gameplayCamera != null && colonyPrefab != null && columnPrefab != null &&
+            if (board != null && levelManager != null && gameplayCamera != null &&
+                colonyPrefab != null && columnPrefab != null &&
                 trayPrefab != null && controllerPrefab != null && traySlotPrefab != null && holePrefab != null)
                 if (antManagerPrefab != null)
                     return true;
@@ -133,18 +143,34 @@ namespace ColonyFlow
             };
         }
 
-        private void ApplyLevelData()
+        private bool ApplyLevelData()
         {
+            if (levels.Count > 0)
+            {
+                loadedLevelIndex = levelManager.ResolveSavedLevelIndex(levels.Count);
+                levelData = levels[loadedLevelIndex];
+            }
+            else
+            {
+                loadedLevelIndex = 0;
+            }
+
             if (levelData == null)
             {
                 EnsureSampleData();
-                return;
+                return true;
             }
 
             levelData.BuildPixels(generatedPixels);
-            board.Configure(levelData.BoardSize, levelData.CellSize, generatedPixels);
             trayCapacity = levelData.TrayCapacity;
             levelData.BuildColumns(generatedPixels, columnData);
+            if (!levelData.ValidateGeneratedLevel(generatedPixels, columnData, out string error))
+            {
+                Debug.LogError($"Cannot start Colony Flow level. {error}", levelData);
+                return false;
+            }
+            board.Configure(levelData.BoardSize, levelData.CellSize, generatedPixels);
+            return true;
         }
 
         private void CreateTraySlots()

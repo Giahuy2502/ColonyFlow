@@ -8,7 +8,7 @@ namespace ColonyFlow.Editor
     internal static class RestoreColonyFlowScene
     {
         private const string ScenePath = "Assets/_Game/Scenes/SampleScene.unity";
-        private const string RevisionKey = "ColonyFlow.SceneRevision.14";
+        private const string RevisionKey = "ColonyFlow.SceneRevision.16";
         private const string PendingKey = "ColonyFlow.SceneReloadPending";
 
         static RestoreColonyFlowScene()

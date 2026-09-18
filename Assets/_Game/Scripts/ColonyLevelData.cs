@@ -78,6 +78,85 @@ namespace ColonyFlow
             }
         }
 
+        public bool ValidateGeneratedLevel(IReadOnlyList<PixelData> generatedPixels,
+            IReadOnlyList<ColonyColumnSpec> generatedColumns, out string error)
+        {
+            error = string.Empty;
+            if (generatedPixels == null || generatedPixels.Count == 0)
+            {
+                error = $"{name}: board contains no pixels.";
+                return false;
+            }
+            if (generatedColumns == null || generatedColumns.Count == 0)
+            {
+                error = $"{name}: level contains no Colony columns.";
+                return false;
+            }
+            if (trayCapacity <= 0 || columnCount <= 0 || maxColonyQuota <= 0)
+            {
+                error = $"{name}: tray capacity, column count and Colony quota must be positive.";
+                return false;
+            }
+
+            int colorCount = Enum.GetValues(typeof(PixelColor)).Length;
+            int[] pixelCounts = new int[colorCount];
+            int[] colonyCounts = new int[colorCount];
+            var occupiedPositions = new HashSet<int>();
+
+            for (int i = 0; i < generatedPixels.Count; i++)
+            {
+                PixelData pixel = generatedPixels[i];
+                if (pixel == null || pixel.Position.x < 0 || pixel.Position.x >= width ||
+                    pixel.Position.y < 0 || pixel.Position.y >= height ||
+                    !Enum.IsDefined(typeof(PixelColor), pixel.Color))
+                {
+                    error = $"{name}: pixel #{i} is null or outside the board.";
+                    return false;
+                }
+
+                int positionIndex = pixel.Position.y * width + pixel.Position.x;
+                if (!occupiedPositions.Add(positionIndex))
+                {
+                    error = $"{name}: duplicate pixel at {pixel.Position}.";
+                    return false;
+                }
+                pixelCounts[(int)pixel.Color]++;
+            }
+
+            for (int columnIndex = 0; columnIndex < generatedColumns.Count; columnIndex++)
+            {
+                ColonyColumnSpec column = generatedColumns[columnIndex];
+                if (column == null || column.colonies == null)
+                {
+                    error = $"{name}: Colony column {columnIndex + 1} is null.";
+                    return false;
+                }
+
+                for (int colonyIndex = 0; colonyIndex < column.colonies.Count; colonyIndex++)
+                {
+                    ColonySpec colony = column.colonies[colonyIndex];
+                    if (colony == null || colony.count <= 0 ||
+                        !Enum.IsDefined(typeof(PixelColor), colony.color))
+                    {
+                        error = $"{name}: invalid Colony in column {columnIndex + 1}.";
+                        return false;
+                    }
+                    colonyCounts[(int)colony.color] += colony.count;
+                }
+            }
+
+            for (int colorIndex = 0; colorIndex < colorCount; colorIndex++)
+            {
+                if (pixelCounts[colorIndex] == colonyCounts[colorIndex])
+                    continue;
+                PixelColor color = (PixelColor)colorIndex;
+                error = $"{name}: {color} has {pixelCounts[colorIndex]} pixels but " +
+                        $"{colonyCounts[colorIndex]} Colony capacity.";
+                return false;
+            }
+            return true;
+        }
+
         private bool TryGetGeneratedColor(int x, int y, out PixelColor color)
         {
             if (pattern == GeneratedPixelPattern.FilledBoard)

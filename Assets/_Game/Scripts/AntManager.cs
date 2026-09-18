@@ -34,6 +34,7 @@ namespace ColonyFlow
             controller = gameplayController;
             holeTarget = antHoleTarget;
             nextSpawnTimeByColony.Clear();
+            controller.RegisterAntManager(this);
             Prewarm();
         }
 
@@ -129,6 +130,7 @@ namespace ColonyFlow
 
             ant.ReturnToPool();
             available.Enqueue(ant);
+            controller.ReevaluateProgress();
         }
 
         private void BuildOutboundRoute(Vector3 spawnPosition, Vector2Int borderStart)

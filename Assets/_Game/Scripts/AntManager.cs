@@ -11,6 +11,10 @@ namespace ColonyFlow
         [SerializeField, Min(1)] private int maxActiveAnts = 64;
         [SerializeField, Min(0.01f)] private float spawnInterval = 0.35f;
         [SerializeField, Min(0f)] private float movementHeight;
+        [SerializeField, Min(0.05f)] private float holeAvoidanceRadiusX = 0.27f;
+        [SerializeField, Min(0.05f)] private float holeAvoidanceRadiusZ = 0.18f;
+        [SerializeField, Min(0f)] private float holeAvoidancePadding = 0.5f;
+        [SerializeField, Range(3, 8)] private int holeDetourSegments = 5;
 
         private readonly Queue<Ant> available = new Queue<Ant>();
         private readonly HashSet<Ant> active = new HashSet<Ant>();
@@ -118,8 +122,12 @@ namespace ColonyFlow
 
             worldRoute.Clear();
             for (int i = 1; i < gridRoute.Count; i++)
+            {
                 worldRoute.Add(ToMovementPosition(gridRoute[i]));
-            AppendHoleApproach();
+                if (gridRoute[i].y == -1)
+                    break;
+            }
+            AppendDirectHoleApproach();
             ant.BeginReturn(worldRoute);
         }
 
@@ -138,10 +146,8 @@ namespace ColonyFlow
             worldRoute.Clear();
             Vector3 borderEntrance = ToMovementPosition(borderStart);
             Vector3 straightStep = new Vector3(spawnPosition.x, movementHeight, borderEntrance.z);
-            if ((straightStep - spawnPosition).sqrMagnitude > 0.0001f)
-                worldRoute.Add(straightStep);
-            if ((borderEntrance - straightStep).sqrMagnitude > 0.0001f)
-                worldRoute.Add(borderEntrance);
+            AppendSegmentAvoidingHole(spawnPosition, straightStep);
+            AppendSegmentAvoidingHole(straightStep, borderEntrance);
 
             for (int i = 1; i < gridRoute.Count; i++)
                 worldRoute.Add(ToMovementPosition(gridRoute[i]));
@@ -166,18 +172,77 @@ namespace ColonyFlow
             return fallback;
         }
 
-        private void AppendHoleApproach()
+        private void AppendDirectHoleApproach()
         {
             Vector3 holePosition = GetHolePosition();
             Vector3 lastPosition = worldRoute.Count > 0
                 ? worldRoute[worldRoute.Count - 1]
                 : ToMovementPosition(board.GetBorderEntrance());
-            Vector3 alignedWithHole = new Vector3(holePosition.x, movementHeight, lastPosition.z);
-
-            if ((alignedWithHole - lastPosition).sqrMagnitude > 0.0001f)
-                worldRoute.Add(alignedWithHole);
-            if ((holePosition - alignedWithHole).sqrMagnitude > 0.0001f)
+            if ((holePosition - lastPosition).sqrMagnitude > 0.0001f)
                 worldRoute.Add(holePosition);
+        }
+
+        private void AppendSegmentAvoidingHole(Vector3 from, Vector3 to)
+        {
+            if ((to - from).sqrMagnitude <= 0.0001f)
+                return;
+
+            Vector3 hole = GetHolePosition();
+            float radiusX = holeAvoidanceRadiusX + holeAvoidancePadding;
+            float radiusZ = holeAvoidanceRadiusZ + holeAvoidancePadding;
+            if (!SegmentIntersectsHole(from, to, hole, Mathf.Max(radiusX, radiusZ)))
+            {
+                worldRoute.Add(to);
+                return;
+            }
+
+            bool vertical = Mathf.Abs(to.z - from.z) >= Mathf.Abs(to.x - from.x);
+            if (vertical)
+            {
+                float direction = Mathf.Sign(to.z - from.z);
+                float side = to.x < hole.x ? -1f : 1f;
+                if (Mathf.Approximately(to.x, hole.x))
+                    side = from.x <= hole.x ? -1f : 1f;
+
+                for (int i = 0; i <= holeDetourSegments; i++)
+                {
+                    float phase = i / (float)holeDetourSegments * Mathf.PI;
+                    worldRoute.Add(new Vector3(
+                        hole.x + side * Mathf.Sin(phase) * radiusX,
+                        movementHeight,
+                        hole.z - direction * Mathf.Cos(phase) * radiusZ));
+                }
+            }
+            else
+            {
+                float direction = Mathf.Sign(to.x - from.x);
+                float side = from.z <= hole.z ? -1f : 1f;
+                for (int i = 0; i <= holeDetourSegments; i++)
+                {
+                    float phase = i / (float)holeDetourSegments * Mathf.PI;
+                    worldRoute.Add(new Vector3(
+                        hole.x - direction * Mathf.Cos(phase) * radiusX,
+                        movementHeight,
+                        hole.z + side * Mathf.Sin(phase) * radiusZ));
+                }
+            }
+            worldRoute.Add(to);
+        }
+
+        private static bool SegmentIntersectsHole(Vector3 from, Vector3 to,
+            Vector3 hole, float radius)
+        {
+            Vector2 start = new Vector2(from.x, from.z);
+            Vector2 end = new Vector2(to.x, to.z);
+            Vector2 center = new Vector2(hole.x, hole.z);
+            Vector2 segment = end - start;
+            float lengthSquared = segment.sqrMagnitude;
+            if (lengthSquared <= 0.000001f)
+                return (start - center).sqrMagnitude < radius * radius;
+
+            float t = Mathf.Clamp01(Vector2.Dot(center - start, segment) / lengthSquared);
+            Vector2 closest = start + segment * t;
+            return (closest - center).sqrMagnitude < radius * radius;
         }
 
         public void CancelAll()

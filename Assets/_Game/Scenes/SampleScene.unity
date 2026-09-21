@@ -241,7 +241,7 @@ MonoBehaviour:
   pixelPrefab: {fileID: 1004, guid: ccf3238a62ca44c798ae8cb1f6ba9681, type: 3}
   pixelRoot: {fileID: 933002}
   pixelMaterial: {fileID: 2100000, guid: bb530838e84149398ff5afaf4a876be1, type: 2}
-  pixelScale: {x: 0.95, y: 0.95, z: 0.95}
+  pixelScale: {x: 1, y: 1, z: 1}
   borderWidth: 0.304
   borderCornerSegments: 8
   boardSurfaceColor: {r: 1, g: 0.94, b: 0.82, a: 1}

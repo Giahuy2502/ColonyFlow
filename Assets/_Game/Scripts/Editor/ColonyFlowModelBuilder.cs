@@ -10,6 +10,7 @@ namespace ColonyFlow.Editor
     {
         private const string ModelFolder = "Assets/_Game/Models";
         private const string MeshPath = ModelFolder + "/SoftBeveledCube.asset";
+        private const string PixelMeshPath = ModelFolder + "/PixelRoundedCube.asset";
         private const string BaseMaterialPath = "Assets/_Game/Materials/ColonyBase.mat";
 
         static ColonyFlowModelBuilder()
@@ -35,16 +36,32 @@ namespace ColonyFlow.Editor
             Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(MeshPath);
             if (mesh == null)
             {
-                mesh = CreateBeveledCube(0.09f);
+                mesh = CreateBeveledCube(0.09f, 1);
                 AssetDatabase.CreateAsset(mesh, MeshPath);
             }
             else if (force)
             {
-                Mesh rebuilt = CreateBeveledCube(0.09f);
+                Mesh rebuilt = CreateBeveledCube(0.09f, 1);
                 EditorUtility.CopySerialized(rebuilt, mesh);
                 Object.DestroyImmediate(rebuilt);
             }
-            AssignPrefabMesh("Assets/_Game/Prefabs/Pixel.prefab", mesh, "Pixel");
+
+            Mesh pixelMesh = AssetDatabase.LoadAssetAtPath<Mesh>(PixelMeshPath);
+            if (pixelMesh == null)
+            {
+                pixelMesh = CreateBeveledCube(0.16f, 4);
+                pixelMesh.name = "Pixel Rounded Cube";
+                AssetDatabase.CreateAsset(pixelMesh, PixelMeshPath);
+            }
+            else if (force)
+            {
+                Mesh rebuilt = CreateBeveledCube(0.16f, 4);
+                rebuilt.name = "Pixel Rounded Cube";
+                EditorUtility.CopySerialized(rebuilt, pixelMesh);
+                Object.DestroyImmediate(rebuilt);
+            }
+
+            AssignPrefabMesh("Assets/_Game/Prefabs/Pixel.prefab", pixelMesh, "Pixel");
             BuildColonyModel(mesh);
             BuildTraySlot(mesh);
             AssetDatabase.SaveAssets();
@@ -149,15 +166,24 @@ namespace ColonyFlow.Editor
             finally { PrefabUtility.UnloadPrefabContents(root); }
         }
 
-        private static Mesh CreateBeveledCube(float radius)
+        private static Mesh CreateBeveledCube(float radius, int bevelSegments)
         {
             const float half = 0.5f;
+            radius = Mathf.Clamp(radius, 0.001f, half);
+            bevelSegments = Mathf.Max(1, bevelSegments);
             float inner = half - radius;
-            float[] coordinates = { -half, -inner, inner, half };
-            var vertices = new List<Vector3>(96);
-            var normals = new List<Vector3>(96);
-            var uvs = new List<Vector2>(96);
-            var triangles = new List<int>(324);
+            int sideVertexCount = bevelSegments * 2 + 2;
+            float[] coordinates = new float[sideVertexCount];
+            for (int i = 0; i <= bevelSegments; i++)
+            {
+                float offset = radius * i / bevelSegments;
+                coordinates[i] = -half + offset;
+                coordinates[sideVertexCount - 1 - i] = half - offset;
+            }
+            var vertices = new List<Vector3>(sideVertexCount * sideVertexCount * 6);
+            var normals = new List<Vector3>(sideVertexCount * sideVertexCount * 6);
+            var uvs = new List<Vector2>(sideVertexCount * sideVertexCount * 6);
+            var triangles = new List<int>((sideVertexCount - 1) * (sideVertexCount - 1) * 36);
             AddFace(Vector3.right, Vector3.up, Vector3.forward);
             AddFace(Vector3.left, Vector3.up, Vector3.back);
             AddFace(Vector3.up, Vector3.forward, Vector3.right);
@@ -172,20 +198,25 @@ namespace ColonyFlow.Editor
             void AddFace(Vector3 faceNormal, Vector3 axisU, Vector3 axisV)
             {
                 int start = vertices.Count;
-                for (int y = 0; y < 4; y++)
-                    for (int x = 0; x < 4; x++)
+                for (int y = 0; y < sideVertexCount; y++)
+                    for (int x = 0; x < sideVertexCount; x++)
                     {
                         Vector3 sharp = faceNormal * half + axisU * coordinates[x] + axisV * coordinates[y];
                         Vector3 closest = new Vector3(Mathf.Clamp(sharp.x, -inner, inner),
                             Mathf.Clamp(sharp.y, -inner, inner), Mathf.Clamp(sharp.z, -inner, inner));
                         Vector3 normal = (sharp - closest).normalized;
                         vertices.Add(closest + normal * radius);
-                        normals.Add(normal); uvs.Add(new Vector2(x / 3f, y / 3f));
+                        normals.Add(normal);
+                        uvs.Add(new Vector2(x / (float)(sideVertexCount - 1),
+                            y / (float)(sideVertexCount - 1)));
                     }
-                for (int y = 0; y < 3; y++)
-                    for (int x = 0; x < 3; x++)
+                for (int y = 0; y < sideVertexCount - 1; y++)
+                    for (int x = 0; x < sideVertexCount - 1; x++)
                     {
-                        int a = start + y * 4 + x, b = a + 1, c = a + 4, d = c + 1;
+                        int a = start + y * sideVertexCount + x;
+                        int b = a + 1;
+                        int c = a + sideVertexCount;
+                        int d = c + 1;
                         triangles.Add(a); triangles.Add(b); triangles.Add(c);
                         triangles.Add(b); triangles.Add(d); triangles.Add(c);
                     }

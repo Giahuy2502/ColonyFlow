@@ -145,6 +145,15 @@ namespace ColonyFlow
 
         private bool ApplyLevelData()
         {
+            ColonyLevelData[] resourceLevels = Resources.LoadAll<ColonyLevelData>("Levels");
+            if (resourceLevels.Length > 0)
+            {
+                Array.Sort(resourceLevels,
+                    (left, right) => string.CompareOrdinal(left.name, right.name));
+                levels.Clear();
+                levels.AddRange(resourceLevels);
+            }
+
             if (levels.Count > 0)
             {
                 loadedLevelIndex = levelManager.ResolveSavedLevelIndex(levels.Count);

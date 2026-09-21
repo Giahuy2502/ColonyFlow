@@ -46,7 +46,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b9c91f11a2243fda129e874a5f54dd4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 2
+  moveSpeed: 1.5
   arrivalDistance: 0.03
   bodyRenderers:
   - {fileID: 4320351406220954599}
@@ -88,8 +88,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2000}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0.06975647, z: 0, w: 0.9975641}
-  m_LocalPosition: {x: 0, y: 0.235, z: -0.01}
+  m_LocalRotation: {x: 0.08694344, y: 0.06949103, z: -0.006079677, w: 0.993768}
+  m_LocalPosition: {x: 0, y: 0.085, z: 0.225}
   m_LocalScale: {x: 0.12, y: 0.075, z: 0.12}
   m_ConstrainProportionsScale: 0
   m_Children: []

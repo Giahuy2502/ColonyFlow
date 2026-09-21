@@ -24,6 +24,7 @@ namespace ColonyFlow
         public int RemainingCount { get; private set; }
         public int InFlightCount { get; private set; }
         public int UnassignedCount => Mathf.Max(0, RemainingCount - InFlightCount);
+        public int DisplayCount => UnassignedCount;
         public ColonyState State { get; private set; }
         public bool CanReceiveTask => (State == ColonyState.Active || State == ColonyState.Blocked) && UnassignedCount > 0;
         public ColonyView View => view;

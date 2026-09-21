@@ -90,15 +90,15 @@ namespace ColonyFlow.Editor
                 if (carried == null)
                 {
                     GameObject carriedObject = CreatePart("Carried Pixel", PrimitiveType.Cube, root.transform,
-                        new Vector3(0f, 0.235f, -0.01f), new Vector3(0.09f, 0.075f, 0.09f),
-                        new Vector3(0f, 8f, 0f), pixel);
+                        new Vector3(0f, 0.085f, 0.225f), new Vector3(0.12f, 0.075f, 0.12f),
+                        new Vector3(10f, 8f, 0f), pixel);
                     carried = carriedObject.transform;
                 }
                 else
                 {
-                    carried.localPosition = new Vector3(0f, 0.235f, -0.01f);
-                    carried.localRotation = Quaternion.Euler(0f, 8f, 0f);
-                    carried.localScale = new Vector3(0.09f, 0.075f, 0.09f);
+                    carried.localPosition = new Vector3(0f, 0.085f, 0.225f);
+                    carried.localRotation = Quaternion.Euler(10f, 8f, 0f);
+                    carried.localScale = new Vector3(0.12f, 0.075f, 0.12f);
                 }
 
                 Ant ant = root.GetComponent<Ant>();

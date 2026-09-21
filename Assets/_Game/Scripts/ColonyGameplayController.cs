@@ -220,6 +220,12 @@ namespace ColonyFlow
             task = new ColonyTask(nextTaskId++, colony, target);
             activeTasks.Add(task.Id, task);
             TaskCreated?.Invoke(task);
+
+            // The Colony box represents ants that have not left it yet. Once the
+            // final ant is dispatched, free its tray slot immediately while the
+            // ants already in flight continue owning and completing their tasks.
+            if (colony.UnassignedCount == 0)
+                tray.Remove(colony);
             return true;
         }
 

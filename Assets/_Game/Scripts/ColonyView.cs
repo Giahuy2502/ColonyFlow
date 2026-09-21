@@ -131,7 +131,7 @@ namespace ColonyFlow
         private void RefreshCount(Colony changed)
         {
             if (countText != null)
-                countText.text = changed.RemainingCount.ToString();
+                countText.text = changed.DisplayCount.ToString();
         }
 
         private void OnStateChanged(Colony changed, ColonyState state)

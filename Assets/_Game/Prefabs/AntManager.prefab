@@ -39,8 +39,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b147fc137b594f7a8c8873750bc24310, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  antPrefab: {fileID: 1004, guid: 7fb12fb9041a4ecfb8af6f2b41108365, type: 3}
-  initialPoolSize: 32
   maxActiveAnts: 64
   spawnInterval: 0.35
   movementHeight: 0

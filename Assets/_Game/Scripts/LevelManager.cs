@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 #if ENABLE_INPUT_SYSTEM
@@ -8,7 +10,7 @@ using UnityEngine.InputSystem;
 namespace ColonyFlow
 {
     [DisallowMultipleComponent]
-    public sealed class LevelManager : MonoBehaviour
+    public sealed class LevelManager : Singleton<LevelManager>
     {
         private const string CurrentLevelKey = "ColonyFlow.CurrentLevel";
         private const string HighestLevelKey = "ColonyFlow.HighestLevel";
@@ -20,24 +22,12 @@ namespace ColonyFlow
         private bool isConfigured;
         private bool resultCanvasOpened;
 
-        public static LevelManager Instance { get; private set; }
         public int CurrentLevelIndex { get; private set; }
         public int DisplayLevelNumber => CurrentLevelIndex + 1;
         public int HighestUnlockedLevel { get; private set; }
 
         public event Action<int> LevelLoaded;
         public event Action LevelRestarted;
-
-        private void Awake()
-        {
-            if (Instance != null && Instance != this)
-            {
-                Debug.LogError("Only one LevelManager may exist in a scene.", this);
-                enabled = false;
-                return;
-            }
-            Instance = this;
-        }
 
         public int ResolveSavedLevelIndex(int availableLevelCount)
         {
@@ -72,12 +62,11 @@ namespace ColonyFlow
             LevelLoaded?.Invoke(CurrentLevelIndex);
         }
 
-        private void OnDestroy()
+        protected override void OnDestroy()
         {
             if (controller != null)
                 controller.StateChanged -= OnGameplayStateChanged;
-            if (Instance == this)
-                Instance = null;
+            base.OnDestroy();
         }
 
         private void LateUpdate()
@@ -237,8 +226,25 @@ namespace ColonyFlow
 
         private static void ReloadScene()
         {
+            ExtensionPoolLifecycle.ReleaseAntPool();
             Scene scene = SceneManager.GetActiveScene();
             SceneManager.LoadScene(scene.buildIndex >= 0 ? scene.buildIndex : 0);
+        }
+    }
+
+    internal static class ExtensionPoolLifecycle
+    {
+        private static readonly FieldInfo PoolDictionaryField = typeof(SimplePool).GetField(
+            "poolInstance", BindingFlags.Static | BindingFlags.NonPublic);
+
+        public static void ReleaseAntPool()
+        {
+            if (PoolDictionaryField?.GetValue(null) is not Dictionary<PoolType, Pool> pools ||
+                !pools.TryGetValue(PoolType.Ant, out Pool antPool))
+                return;
+
+            antPool?.Release();
+            pools.Remove(PoolType.Ant);
         }
     }
 }

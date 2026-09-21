@@ -11,7 +11,7 @@ namespace ColonyFlow
     }
 
     [DisallowMultipleComponent]
-    public sealed class Ant : MonoBehaviour
+    public sealed class Ant : GameUnit
     {
         [SerializeField, Min(0.1f)] private float moveSpeed = 2.5f;
         [SerializeField, Min(0.01f)] private float arrivalDistance = 0.03f;
@@ -75,7 +75,6 @@ namespace ColonyFlow
             task = default;
             State = AntState.Pooled;
             SetCarriedPixelVisible(false);
-            gameObject.SetActive(false);
         }
 
         private void Update()

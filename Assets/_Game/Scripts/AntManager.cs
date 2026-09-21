@@ -4,10 +4,8 @@ using UnityEngine;
 namespace ColonyFlow
 {
     [DisallowMultipleComponent]
-    public sealed class AntManager : MonoBehaviour
+    public sealed class AntManager : Singleton<AntManager>
     {
-        [SerializeField] private Ant antPrefab;
-        [SerializeField, Min(1)] private int initialPoolSize = 32;
         [SerializeField, Min(1)] private int maxActiveAnts = 64;
         [SerializeField, Min(0.01f)] private float spawnInterval = 0.35f;
         [SerializeField, Min(0f)] private float movementHeight;
@@ -16,7 +14,6 @@ namespace ColonyFlow
         [SerializeField, Min(0f)] private float holeAvoidancePadding = 0.5f;
         [SerializeField, Range(3, 8)] private int holeDetourSegments = 5;
 
-        private readonly Queue<Ant> available = new Queue<Ant>();
         private readonly HashSet<Ant> active = new HashSet<Ant>();
         private readonly List<Colony> colonies = new List<Colony>();
         private readonly Dictionary<Colony, float> nextSpawnTimeByColony =
@@ -26,20 +23,20 @@ namespace ColonyFlow
         private PixelBoard board;
         private ColonyGameplayController controller;
         private Transform holeTarget;
+        private Transform antRoot;
         private int nextColonyIndex;
 
         public int ActiveCount => active.Count;
-        public int PooledCount => available.Count;
 
         public void Configure(PixelBoard pixelBoard, ColonyGameplayController gameplayController,
-            Transform antHoleTarget)
+            Transform antHoleTarget, Transform spawnedAntRoot)
         {
             board = pixelBoard;
             controller = gameplayController;
             holeTarget = antHoleTarget;
+            antRoot = spawnedAntRoot;
             nextSpawnTimeByColony.Clear();
             controller.RegisterAntManager(this);
-            Prewarm();
         }
 
         private void Update()
@@ -49,27 +46,6 @@ namespace ColonyFlow
                 return;
 
             TryDispatchOneAnt();
-        }
-
-        private void Prewarm()
-        {
-            if (antPrefab == null)
-            {
-                Debug.LogError("AntManager requires an Ant prefab.", this);
-                enabled = false;
-                return;
-            }
-
-            for (int i = available.Count + active.Count; i < initialPoolSize; i++)
-                available.Enqueue(CreateAnt());
-        }
-
-        private Ant CreateAnt()
-        {
-            Ant ant = Instantiate(antPrefab, transform);
-            ant.name = "Ant";
-            ant.PrepareForPool();
-            return ant;
         }
 
         private void TryDispatchOneAnt()
@@ -94,7 +70,12 @@ namespace ColonyFlow
 
                 nextColonyIndex = (index + 1) % colonies.Count;
                 nextSpawnTimeByColony[colony] = Time.time + spawnInterval;
-                Ant ant = available.Count > 0 ? available.Dequeue() : CreateAnt();
+                Ant ant = SimplePool.Spawn<Ant>(PoolType.Ant, antRoot.position, antRoot.rotation);
+                if (ant == null)
+                {
+                    controller.CancelTask(task.Id);
+                    return;
+                }
                 active.Add(ant);
 
                 Vector3 target = board.GridToLocalPosition(task.Target) + Vector3.up * movementHeight;
@@ -116,7 +97,7 @@ namespace ColonyFlow
             {
                 active.Remove(ant);
                 ant.ReturnToPool();
-                available.Enqueue(ant);
+                SimplePool.Despawn(ant);
                 return;
             }
 
@@ -137,7 +118,7 @@ namespace ColonyFlow
                 return;
 
             ant.ReturnToPool();
-            available.Enqueue(ant);
+            SimplePool.Despawn(ant);
             controller.ReevaluateProgress();
         }
 
@@ -162,7 +143,7 @@ namespace ColonyFlow
         {
             if (holeTarget != null)
             {
-                Vector3 position = transform.InverseTransformPoint(holeTarget.position);
+                Vector3 position = antRoot.InverseTransformPoint(holeTarget.position);
                 position.y = movementHeight;
                 return position;
             }
@@ -253,7 +234,7 @@ namespace ColonyFlow
                 controller.CancelTask(ant.TaskId);
                 active.Remove(ant);
                 ant.ReturnToPool();
-                available.Enqueue(ant);
+                SimplePool.Despawn(ant);
             }
         }
     }

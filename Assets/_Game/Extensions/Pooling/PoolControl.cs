@@ -38,4 +38,5 @@ public enum PoolType
     Candy2 = 10,
     Candy3 = 11,
     Uzi = 12,
+    Ant = 100,
 }

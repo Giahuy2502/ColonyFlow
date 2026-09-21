@@ -8,6 +8,7 @@ namespace ColonyFlow.Editor
     /// Builds the lightweight ant model directly into Ant.prefab. This code only
     /// runs in the editor; the built player never creates components at runtime.
     /// </summary>
+    [InitializeOnLoad]
     internal static class AntPrefabModelBuilder
     {
         private const string PrefabPath = "Assets/_Game/Prefabs/Ant.prefab";
@@ -15,6 +16,13 @@ namespace ColonyFlow.Editor
         private const string DetailMaterialPath = "Assets/_Game/Materials/AntDetail.mat";
         private const string PixelMaterialPath = "Assets/_Game/Materials/Pixel.mat";
         private const string ModelName = "Ant Model V2";
+
+        static AntPrefabModelBuilder()
+        {
+            EditorApplication.delayCall += BuildIfNeeded;
+        }
+
+        private static void BuildIfNeeded() => Build(false);
 
         [MenuItem("Colony Flow/Rebuild Ant Model")]
         private static void RebuildFromMenu()
@@ -37,7 +45,7 @@ namespace ColonyFlow.Editor
             try
             {
                 Transform existing = root.transform.Find(ModelName);
-                if (existing != null && !force)
+                if (existing != null && !force && IsCurrentModel(existing))
                     return;
 
                 if (existing != null)
@@ -49,8 +57,6 @@ namespace ColonyFlow.Editor
                     Object.DestroyImmediate(oldRenderer);
                 if (oldFilter != null)
                     Object.DestroyImmediate(oldFilter);
-
-                root.transform.localScale = Vector3.one;
 
                 Material body = AssetDatabase.LoadAssetAtPath<Material>(BodyMaterialPath);
                 Material detail = GetOrCreateDetailMaterial(body);
@@ -68,23 +74,25 @@ namespace ColonyFlow.Editor
                     new Vector3(0f, 0.11f, 0.12f), new Vector3(0.17f, 0.15f, 0.16f), Vector3.zero, body);
 
                 CreatePart("Eye L", PrimitiveType.Sphere, model.transform,
-                    new Vector3(-0.052f, 0.137f, 0.184f), Vector3.one * 0.032f, Vector3.zero, detail);
+                    new Vector3(-0.058f, 0.135f, 0.184f), Vector3.one * 0.06f, Vector3.zero, detail);
                 CreatePart("Eye R", PrimitiveType.Sphere, model.transform,
-                    new Vector3(0.052f, 0.137f, 0.184f), Vector3.one * 0.032f, Vector3.zero, detail);
+                    new Vector3(0.058f, 0.135f, 0.184f), Vector3.one * 0.06f, Vector3.zero, detail);
 
-                CreateLeg(model.transform, "Front Leg L", -1f, 0.055f, 0.068f, 28f);
-                CreateLeg(model.transform, "Middle Leg L", -1f, 0.052f, 0.005f, 3f);
-                CreateLeg(model.transform, "Back Leg L", -1f, 0.052f, -0.065f, -30f);
-                CreateLeg(model.transform, "Front Leg R", 1f, 0.055f, 0.068f, -28f);
-                CreateLeg(model.transform, "Middle Leg R", 1f, 0.052f, 0.005f, -3f);
-                CreateLeg(model.transform, "Back Leg R", 1f, 0.052f, -0.065f, 30f);
+                CreateBentLeg(model.transform, "Front Leg L", -1f, 0.067f,
+                    0.098f, 0.132f, body);
+                CreateBentLeg(model.transform, "Middle Leg L", -1f, 0.008f,
+                    0.012f, 0.018f, body);
+                CreateBentLeg(model.transform, "Back Leg L", -1f, -0.052f,
+                    -0.088f, -0.128f, body);
+                CreateBentLeg(model.transform, "Front Leg R", 1f, 0.067f,
+                    0.098f, 0.132f, body);
+                CreateBentLeg(model.transform, "Middle Leg R", 1f, 0.008f,
+                    0.012f, 0.018f, body);
+                CreateBentLeg(model.transform, "Back Leg R", 1f, -0.052f,
+                    -0.088f, -0.128f, body);
 
-                CreatePart("Antenna L", PrimitiveType.Cube, model.transform,
-                    new Vector3(-0.053f, 0.16f, 0.218f), new Vector3(0.011f, 0.011f, 0.09f),
-                    new Vector3(0f, -24f, -8f), body);
-                CreatePart("Antenna R", PrimitiveType.Cube, model.transform,
-                    new Vector3(0.053f, 0.16f, 0.218f), new Vector3(0.011f, 0.011f, 0.09f),
-                    new Vector3(0f, 24f, 8f), body);
+                CreateBentAntenna(model.transform, "Antenna L", -1f, body);
+                CreateBentAntenna(model.transform, "Antenna R", 1f, body);
 
                 Transform carried = root.transform.Find("Carried Pixel");
                 if (carried == null)
@@ -128,12 +136,53 @@ namespace ColonyFlow.Editor
             }
         }
 
-        private static void CreateLeg(Transform parent, string name, float side, float y, float z, float yaw)
+        private static bool IsCurrentModel(Transform model)
         {
-            CreatePart(name, PrimitiveType.Cube, parent,
-                new Vector3(side * 0.077f, y, z), new Vector3(0.075f, 0.011f, 0.014f),
-                new Vector3(0f, yaw, side * -12f),
-                AssetDatabase.LoadAssetAtPath<Material>(BodyMaterialPath));
+            Transform leftEye = model.Find("Eye L");
+            return leftEye != null &&
+                   Mathf.Approximately(leftEye.localScale.x, 0.06f) &&
+                   model.Find("Front Leg L/Upper") != null &&
+                   model.Find("Antenna L/Upper") != null;
+        }
+
+        private static void CreateBentLeg(Transform parent, string name, float side,
+            float startZ, float jointZ, float endZ, Material material)
+        {
+            GameObject root = new GameObject(name);
+            root.transform.SetParent(parent, false);
+            Vector3 start = new Vector3(side * 0.052f, 0.074f, startZ);
+            Vector3 joint = new Vector3(side * 0.112f, 0.048f, jointZ);
+            Vector3 end = new Vector3(side * 0.145f, 0.012f, endZ);
+            CreateRoundedSegment("Upper", root.transform, start, joint, 0.021f, material);
+            CreatePart("Joint", PrimitiveType.Sphere, root.transform,
+                joint, Vector3.one * 0.026f, Vector3.zero, material);
+            CreateRoundedSegment("Lower", root.transform, joint, end, 0.021f, material);
+        }
+
+        private static void CreateBentAntenna(Transform parent, string name,
+            float side, Material material)
+        {
+            GameObject root = new GameObject(name);
+            root.transform.SetParent(parent, false);
+            Vector3 start = new Vector3(side * 0.043f, 0.168f, 0.177f);
+            Vector3 joint = new Vector3(side * 0.068f, 0.205f, 0.218f);
+            Vector3 end = new Vector3(side * 0.096f, 0.218f, 0.248f);
+            CreateRoundedSegment("Lower", root.transform, start, joint, 0.019f, material);
+            CreatePart("Joint", PrimitiveType.Sphere, root.transform,
+                joint, Vector3.one * 0.021f, Vector3.zero, material);
+            CreateRoundedSegment("Upper", root.transform, joint, end, 0.019f, material);
+        }
+
+        private static GameObject CreateRoundedSegment(string name, Transform parent,
+            Vector3 start, Vector3 end, float diameter, Material material)
+        {
+            Vector3 direction = end - start;
+            GameObject segment = CreatePart(name, PrimitiveType.Cylinder, parent,
+                (start + end) * 0.5f,
+                new Vector3(diameter * 0.5f, direction.magnitude * 0.5f, diameter * 0.5f),
+                Vector3.zero, material);
+            segment.transform.localRotation = Quaternion.FromToRotation(Vector3.up, direction);
+            return segment;
         }
 
         private static GameObject CreatePart(string name, PrimitiveType type, Transform parent,

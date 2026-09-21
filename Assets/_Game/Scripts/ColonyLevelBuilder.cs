@@ -28,7 +28,7 @@ namespace ColonyFlow
         }
     }
 
-    [DefaultExecutionOrder(-100)]
+    [DefaultExecutionOrder(100)]
     [DisallowMultipleComponent]
     public sealed class ColonyLevelBuilder : MonoBehaviour
     {
@@ -41,10 +41,15 @@ namespace ColonyFlow
         [SerializeField] private Colony colonyPrefab;
         [SerializeField] private ColonyColumn columnPrefab;
         [SerializeField] private ColonyTray trayPrefab;
-        [SerializeField] private ColonyGameplayController controllerPrefab;
-        [SerializeField] private AntManager antManagerPrefab;
+        [SerializeField] private ColonyGameplayController controller;
+        [SerializeField] private AntManager antManager;
         [SerializeField] private Transform traySlotPrefab;
         [SerializeField] private Transform holePrefab;
+
+        [Header("Hierarchy roots")]
+        [SerializeField] private Transform antsRoot;
+        [SerializeField] private Transform coloniesRoot;
+        [SerializeField] private Transform colonyTraysRoot;
 
         [Header("Layout")]
         [SerializeField, Min(0f)] private float holeDistanceBelowBoard = 0.55f;
@@ -61,7 +66,6 @@ namespace ColonyFlow
         private readonly List<Vector3> trayPositions = new List<Vector3>();
         private readonly List<PixelData> generatedPixels = new List<PixelData>();
         private ColonyTray tray;
-        private ColonyGameplayController controller;
         private Transform antHole;
         private int loadedLevelIndex;
 
@@ -78,9 +82,7 @@ namespace ColonyFlow
                 enabled = false;
                 return;
             }
-            controller = Instantiate(controllerPrefab, transform);
-            controller.name = "Colony Gameplay Controller";
-            tray = Instantiate(trayPrefab, transform);
+            tray = Instantiate(trayPrefab, colonyTraysRoot);
             tray.name = "Colony Tray";
             tray.Configure(trayCapacity);
 
@@ -88,9 +90,7 @@ namespace ColonyFlow
             CreateHole();
             CreateColumns();
             controller.Configure(board, tray, gameplayCamera, columns, simulateWithoutAnt, simulatedTaskInterval);
-            AntManager antManager = Instantiate(antManagerPrefab, transform);
-            antManager.name = "Ant Manager";
-            antManager.Configure(board, controller, antHole);
+            antManager.Configure(board, controller, antHole, antsRoot);
             levelManager.Configure(controller, antManager,
                 levels.Count > 0 ? levels.Count : 1, loadedLevelIndex);
             InitializeViews();
@@ -110,8 +110,9 @@ namespace ColonyFlow
         {
             if (board != null && levelManager != null && gameplayCamera != null &&
                 colonyPrefab != null && columnPrefab != null &&
-                trayPrefab != null && controllerPrefab != null && traySlotPrefab != null && holePrefab != null)
-                if (antManagerPrefab != null)
+                trayPrefab != null && controller != null && antManager != null &&
+                traySlotPrefab != null && holePrefab != null && antsRoot != null &&
+                coloniesRoot != null && colonyTraysRoot != null)
                     return true;
 
             Debug.LogError("ColonyLevelBuilder has missing serialized prefab references.", this);
@@ -120,7 +121,7 @@ namespace ColonyFlow
 
         private void CreateHole()
         {
-            antHole = Instantiate(holePrefab, transform);
+            antHole = Instantiate(holePrefab, colonyTraysRoot);
             antHole.name = "Ant Hole";
             float boardCenterX = (board.Size.x - 1) * board.CellSize * 0.5f;
             float bottomBorderZ = -board.CellSize * 0.55f;
@@ -206,7 +207,7 @@ namespace ColonyFlow
 
             for (int columnIndex = 0; columnIndex < columnData.Count; columnIndex++)
             {
-                ColonyColumn column = Instantiate(columnPrefab, transform);
+                ColonyColumn column = Instantiate(columnPrefab, coloniesRoot);
                 column.name = $"Colony Column {columnIndex + 1}";
                 var models = new List<Colony>();
                 var visualList = new List<ColonyView>();
@@ -247,7 +248,7 @@ namespace ColonyFlow
         {
             if (views.TryGetValue(colony, out ColonyView view) && slotIndex < trayPositions.Count)
             {
-                view.transform.SetParent(transform, true);
+                view.transform.SetParent(colonyTraysRoot, true);
                 view.MoveToTray(trayPositions[slotIndex]);
             }
             RefreshColumnPositions();

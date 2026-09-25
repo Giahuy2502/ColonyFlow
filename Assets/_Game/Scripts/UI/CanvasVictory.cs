@@ -9,23 +9,23 @@ namespace ColonyFlow
 
         public override void Setup()
         {
-            if (levelText != null && LevelManager.Instance != null)
-                levelText.text = $"Level {LevelManager.Instance.DisplayLevelNumber} Complete";
+            if (levelText != null && GameManager.Instance != null)
+                levelText.text = $"Level {GameManager.Instance.DisplayLevelNumber} Complete";
         }
 
         public void NextLevelButton()
         {
-            LevelManager.Instance?.NextLevel();
+            GameManager.Instance?.NextLevel();
         }
 
         public void ReplayButton()
         {
-            LevelManager.Instance?.RestartLevel();
+            GameManager.Instance?.ReplayLevel();
         }
 
         public void MainMenuButton()
         {
-            LevelManager.Instance?.NextLevel();
+            GameManager.Instance?.GoToMainMenu();
         }
     }
 }

@@ -5,40 +5,27 @@ namespace ColonyFlow
     public sealed class CanvasSettings : UICanvas
     {
         [SerializeField] private GameObject gameplayButtons;
-        private float previousTimeScale = 1f;
-
         public override void Open()
         {
             if (gameplayButtons != null)
-                gameplayButtons.SetActive(true);
-            if (Time.timeScale > 0f)
-                previousTimeScale = Time.timeScale;
-            Time.timeScale = 0f;
+                gameplayButtons.SetActive(GameManager.Instance != null &&
+                    GameManager.Instance.State == GameState.Paused);
             base.Open();
         }
 
         public void ContinueButton()
         {
-            CloseDirectly();
+            GameManager.Instance?.CloseSettings();
         }
 
         public void RetryButton()
         {
-            Time.timeScale = 1f;
-            LevelManager.Instance?.RestartLevel();
+            GameManager.Instance?.RestartLevel();
         }
 
         public void MainMenuButton()
         {
-            Time.timeScale = 0f;
-            UIManager.Instance?.CloseAll();
-            UIManager.Instance?.Open<CanvasMainMenu>();
-        }
-
-        public override void CloseDirectly()
-        {
-            Time.timeScale = previousTimeScale;
-            base.CloseDirectly();
+            GameManager.Instance?.GoToMainMenu();
         }
     }
 }

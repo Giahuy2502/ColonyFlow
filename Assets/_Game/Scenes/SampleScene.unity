@@ -221,7 +221,7 @@ MonoBehaviour:
     color: 0
   - position: {x: 4, y: 4}
     color: 0
-  buildOnStart: 1
+  buildOnStart: 0
   debugCollectPosition: {x: 0, y: 0}
 --- !u!114 &900004
 MonoBehaviour:
@@ -265,20 +265,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a091268b399445918937098959918617, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 203f8474d12a4b8993a583701ac7d303, type: 2}
-  levels:
-  - {fileID: 11400000, guid: c50d2abe98e94c368c86f6b4578eb865, type: 2}
-  - {fileID: 11400000, guid: a7a271f81c3e47ccad57f40b6b1f5e27, type: 2}
-  - {fileID: 11400000, guid: 203f8474d12a4b8993a583701ac7d303, type: 2}
-  - {fileID: 11400000, guid: 204f8474d12a4b8993a583701ac7d404, type: 2}
-  - {fileID: 11400000, guid: 205f8474d12a4b8993a583701ac7d505, type: 2}
   board: {fileID: 900003}
   levelManager: {fileID: 45601132}
   gameplayCamera: {fileID: 330585545}
   colonyPrefab: {fileID: 1005, guid: 70cde887312c48e78ffcabf8ee1286d0, type: 3}
   columnPrefab: {fileID: 1002, guid: 9b95ed811fab4d9686951e681345d8a2, type: 3}
   trayPrefab: {fileID: 1002, guid: 702197bda2e6470c8673098755daeb5a, type: 3}
-  controller: {fileID: 600000003}
   antManager: {fileID: 32030558}
   traySlotPrefab: {fileID: 1001, guid: e3a4ec4a8cd54516957167d147a93bbc, type: 3}
   holePrefab: {fileID: 1001, guid: 97d8e1763af34f3cbdb194be5fe76877, type: 3}
@@ -286,8 +278,6 @@ MonoBehaviour:
   coloniesRoot: {fileID: 471743409}
   colonyTraysRoot: {fileID: 1890130198}
   holeDistanceBelowBoard: 1.2
-  trayCapacity: 5
-  columnData: []
   simulateWithoutAnt: 0
   simulatedTaskInterval: 0.08
 --- !u!1 &910001
@@ -815,6 +805,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8a7c3c77e2a14ca5a45e5fc8628d9191, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ColonyFlow.LevelManager
+  levelBuilder: {fileID: 900005}
+  antManager: {fileID: 32030558}
+  deadlockConfirmationDelay: 0.75
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -1158,57 +1151,6 @@ MonoBehaviour:
   - prefab: {fileID: 1004, guid: 7fb12fb9041a4ecfb8af6f2b41108365, type: 3}
     parent: {fileID: 1662146540}
     amount: 32
---- !u!1 &600000001
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 600000002}
-  - component: {fileID: 600000003}
-  m_Layer: 0
-  m_Name: Gameplay Manager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &600000002
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 600000001}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 647348470}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &600000003
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 600000001}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 16de0eb9202b4f9bb03e0cb31179c1a1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ColonyFlow.ColonyGameplayController
-  board: {fileID: 0}
-  tray: {fileID: 0}
-  columns: []
-  inputCamera: {fileID: 0}
-  simulateTasks: 0
-  simulatedTaskInterval: 0.08
-  deadlockConfirmationDelay: 0.75
 --- !u!1 &600000011
 GameObject:
   m_ObjectHideFlags: 0
@@ -1250,6 +1192,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 647348470}
+  - component: {fileID: 700000001}
+  - component: {fileID: 700000002}
+  - component: {fileID: 700000003}
   m_Layer: 0
   m_Name: Managers
   m_TagString: Untagged
@@ -1274,10 +1219,49 @@ Transform:
   - {fileID: 45601131}
   - {fileID: 32030559}
   - {fileID: 508302468}
-  - {fileID: 600000002}
   - {fileID: 600000012}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &700000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 647348469}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 91ab01fdbbe84d15a989cf9418ccf102, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ColonyFlow.PlayerDataManager
+--- !u!114 &700000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 647348469}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 91ab01fdbbe84d15a989cf9418ccf103, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ColonyFlow.DataManager
+  gameData: {fileID: 11400000, guid: 91ab01fdbbe84d15a989cf9418ccf105, type: 2}
+  playerDataManager: {fileID: 700000001}
+--- !u!114 &700000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 647348469}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 91ab01fdbbe84d15a989cf9418ccf104, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ColonyFlow.GameManager
+  dataManager: {fileID: 700000002}
+  levelManager: {fileID: 45601132}
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0

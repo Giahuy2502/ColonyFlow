@@ -28,27 +28,27 @@ namespace ColonyFlow
         private readonly List<Vector3> rawRouteScratch = new List<Vector3>(128);
         private readonly List<Vector3> pathScratch = new List<Vector3>(128);
         private PixelBoard board;
-        private ColonyGameplayController controller;
+        private LevelManager levelManager;
         private Transform holeTarget;
         private Transform antRoot;
         private int nextColonyIndex;
 
         public int ActiveCount => active.Count;
 
-        public void OnInit(PixelBoard pixelBoard, ColonyGameplayController gameplayController,
+        public void OnInit(PixelBoard pixelBoard, LevelManager gameplayLevelManager,
             Transform antHoleTarget, Transform spawnedAntRoot)
         {
             board = pixelBoard;
-            controller = gameplayController;
+            levelManager = gameplayLevelManager;
             holeTarget = antHoleTarget;
             antRoot = spawnedAntRoot;
             nextSpawnTimeByColony.Clear();
-            controller.RegisterAntManager(this);
         }
 
         private void Update()
         {
-            if (board == null || controller == null || controller.State != LevelState.Playing ||
+            if (board == null || levelManager == null ||
+                !levelManager.CanProcessGameplay ||
                 active.Count >= maxActiveAnts)
                 return;
 
@@ -57,7 +57,7 @@ namespace ColonyFlow
 
         private void TryDispatchOneAnt()
         {
-            controller.CopyActiveColonies(colonies);
+            levelManager.CopyActiveColonies(colonies);
             if (colonies.Count == 0)
                 return;
 
@@ -71,7 +71,7 @@ namespace ColonyFlow
 
                 Vector3 colonyPosition = colony.transform.localPosition;
                 Vector2Int borderStart = board.GetClosestBottomBorder(colonyPosition.x);
-                if (!controller.TryCreateTask(colony, borderStart, gridRoute,
+                if (!levelManager.TryCreateTask(colony, borderStart, gridRoute,
                         out ColonyTask task))
                     continue;
 
@@ -80,7 +80,7 @@ namespace ColonyFlow
                 Ant ant = SimplePool.Spawn<Ant>(PoolType.Ant, antRoot.position, antRoot.rotation);
                 if (ant == null)
                 {
-                    controller.CancelTask(task.Id);
+                    levelManager.CancelTask(task.Id);
                     return;
                 }
                 active.Add(ant);
@@ -101,7 +101,7 @@ namespace ColonyFlow
             if (ant == null || !active.Contains(ant))
                 return;
 
-            if (!controller.CompleteTask(task.Id) ||
+            if (!levelManager.CompleteTask(task.Id) ||
                 !board.TryBuildReturnPath(task.Target, gridRoute))
             {
                 active.Remove(ant);
@@ -130,7 +130,7 @@ namespace ColonyFlow
 
             ant.OnDespawn();
             SimplePool.Despawn(ant);
-            controller.ReevaluateProgress();
+            levelManager.ReevaluateProgress();
         }
 
         private void BuildOutboundRoute(Vector3 spawnPosition, Vector2Int borderStart)
@@ -507,11 +507,25 @@ namespace ColonyFlow
             var snapshot = new List<Ant>(active);
             foreach (Ant ant in snapshot)
             {
-                controller.CancelTask(ant.TaskId);
+                levelManager?.CancelTask(ant.TaskId);
                 active.Remove(ant);
                 ant.OnDespawn();
                 SimplePool.Despawn(ant);
             }
+        }
+
+        public void Shutdown()
+        {
+            CancelAll();
+            nextSpawnTimeByColony.Clear();
+            colonies.Clear();
+            gridRoute.Clear();
+            worldRoute.Clear();
+            smoothedRoute.Clear();
+            board = null;
+            levelManager = null;
+            holeTarget = null;
+            antRoot = null;
         }
     }
 }

@@ -4,13 +4,12 @@ namespace ColonyFlow
     {
         public void RetryButton()
         {
-            LevelManager.Instance?.RestartLevel();
+            GameManager.Instance?.RestartLevel();
         }
 
         public void MainMenuButton()
         {
-            UIManager.Instance?.CloseAll();
-            UIManager.Instance?.Open<CanvasMainMenu>();
+            GameManager.Instance?.GoToMainMenu();
         }
     }
 }

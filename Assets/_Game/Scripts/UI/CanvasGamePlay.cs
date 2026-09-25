@@ -12,27 +12,26 @@ namespace ColonyFlow
 
         public override void Setup()
         {
-            if (aliveText != null && LevelManager.Instance != null)
-                aliveText.text = $"Level {LevelManager.Instance.DisplayLevelNumber}";
+            if (aliveText != null && GameManager.Instance != null)
+                aliveText.text = $"Level {GameManager.Instance.DisplayLevelNumber}";
             if (loseNotification != null)
             {
                 loseNotification.Setup();
                 loseNotification.gameObject.SetActive(false);
             }
-            doubleSpeed = false;
-            Time.timeScale = 1f;
+            doubleSpeed = GameManager.Instance != null && GameManager.Instance.IsDoubleSpeed;
             RefreshSpeedText();
         }
 
         public void SettingButton()
         {
-            UIManager.Instance?.Open<CanvasSettings>();
+            GameManager.Instance?.OpenSettings();
         }
 
         public void SpeedButton()
         {
-            doubleSpeed = !doubleSpeed;
-            Time.timeScale = doubleSpeed ? 2f : 1f;
+            GameManager.Instance?.ToggleGameSpeed();
+            doubleSpeed = GameManager.Instance != null && GameManager.Instance.IsDoubleSpeed;
             RefreshSpeedText();
         }
 

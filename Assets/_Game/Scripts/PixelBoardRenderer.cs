@@ -61,6 +61,7 @@ namespace ColonyFlow
             }
 
             board.BoardBuilt += Rebuild;
+            board.BoardCleared += ClearRuntimeVisuals;
             board.PixelCollected += OnPixelCollected;
             if (board.IsBuilt)
                 Rebuild();
@@ -72,6 +73,7 @@ namespace ColonyFlow
                 return;
 
             board.BoardBuilt -= Rebuild;
+            board.BoardCleared -= ClearRuntimeVisuals;
             board.PixelCollected -= OnPixelCollected;
         }
 
@@ -199,6 +201,19 @@ namespace ColonyFlow
                     pixelsByIndex[boardIndex] = pixel;
                 }
             }
+        }
+
+        private void ClearRuntimeVisuals()
+        {
+            foreach (Pixel pixel in pixelsByIndex.Values)
+            {
+                pixel.MarkCollected();
+                pixelPool.Enqueue(pixel);
+            }
+            pixelsByIndex.Clear();
+            boardFrameMesh?.Clear();
+            boardSurfaceMesh?.Clear();
+            outerBorderMesh?.Clear();
         }
 
         private void OnPixelCollected(Vector2Int position, PixelColor color)

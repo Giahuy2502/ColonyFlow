@@ -17,7 +17,7 @@ namespace ColonyFlow
         private static readonly int ColorId = Shader.PropertyToID("_Color");
         private MaterialPropertyBlock propertyBlock;
         [SerializeField] private Colony colony;
-        private ColonyGameplayController controller;
+        private LevelManager levelManager;
         private int columnIndex;
         private Vector3 targetLocalPosition;
         private Camera mainCamera;
@@ -54,10 +54,10 @@ namespace ColonyFlow
                 ClickTargets.Remove(clickCollider);
         }
 
-        public void Initialize(Colony model, ColonyGameplayController gameplayController, int ownerColumn)
+        public void Initialize(Colony model, LevelManager gameplayLevelManager, int ownerColumn)
         {
             colony = model;
-            controller = gameplayController;
+            levelManager = gameplayLevelManager;
             columnIndex = ownerColumn;
             targetLocalPosition = transform.localPosition;
             mainCamera = Camera.main;
@@ -98,8 +98,8 @@ namespace ColonyFlow
 
         public void HandleClick()
         {
-            if (controller != null && colony != null && colony.State == ColonyState.InColumn)
-                controller.SelectColumn(columnIndex);
+            if (levelManager != null && colony != null && colony.State == ColonyState.InColumn)
+                levelManager.SelectColumn(columnIndex);
         }
 
         private void Update()

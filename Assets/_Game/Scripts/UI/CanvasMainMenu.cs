@@ -9,25 +9,18 @@ namespace ColonyFlow
 
         public override void Setup()
         {
-            if (goldText != null && LevelManager.Instance != null)
-                goldText.text = $"Level {LevelManager.Instance.DisplayLevelNumber}";
-        }
-
-        public override void Open()
-        {
-            Time.timeScale = 0f;
-            base.Open();
+            if (goldText != null && GameManager.Instance != null)
+                goldText.text = $"Level {GameManager.Instance.DisplayLevelNumber}";
         }
 
         public void PlayButton()
         {
-            Time.timeScale = 1f;
-            Close(0f);
+            GameManager.Instance?.PlayGame();
         }
 
         public void SettingButton()
         {
-            UIManager.Instance?.Open<CanvasSettings>();
+            GameManager.Instance?.OpenSettings();
         }
 
         public void ShopButton()

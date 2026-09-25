@@ -1,244 +1,438 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
-#if ENABLE_INPUT_SYSTEM
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
-#endif
 
 namespace ColonyFlow
 {
+    public enum LevelResult : byte
+    {
+        Victory,
+        Failed
+    }
+
+    public readonly struct ColonyTask
+    {
+        public int Id { get; }
+        public Colony Owner { get; }
+        public Vector2Int Target { get; }
+        public PixelColor Color => Owner.Color;
+
+        internal ColonyTask(int id, Colony owner, Vector2Int target)
+        {
+            Id = id;
+            Owner = owner;
+            Target = target;
+        }
+    }
+
     [DisallowMultipleComponent]
     public sealed class LevelManager : Singleton<LevelManager>
     {
-        private const string CurrentLevelKey = "ColonyFlow.CurrentLevel";
-        private const string HighestLevelKey = "ColonyFlow.HighestLevel";
+        [SerializeField] private ColonyLevelBuilder levelBuilder;
+        [SerializeField] private AntManager antManager;
+        [SerializeField, Min(0f)] private float deadlockConfirmationDelay = 0.75f;
 
-        private ColonyGameplayController controller;
-        private AntManager antManager;
-        private int levelCount = 1;
+        private readonly Dictionary<int, ColonyTask> activeTasks =
+            new Dictionary<int, ColonyTask>();
+        private readonly List<Colony> trayColonies = new List<Colony>();
+        private readonly List<ColonyColumn> columns = new List<ColonyColumn>();
+        private PixelBoard board;
+        private ColonyTray tray;
+        private Camera inputCamera;
+        private int nextTaskId = 1;
+        private float simulationTimer;
+        private bool simulateTasks;
+        private float simulatedTaskInterval = 0.1f;
+        private float deadlockCandidateSince;
+        private bool deadlockCandidate;
         private bool cleanupPending;
-        private bool isConfigured;
-        private bool resultCanvasOpened;
 
-        public static LevelManager Instance { get; private set; }
-        public int CurrentLevelIndex { get; private set; }
-        public int DisplayLevelNumber => CurrentLevelIndex + 1;
-        public int HighestUnlockedLevel { get; private set; }
+        public bool IsPlaying { get; private set; }
+        public bool IsPaused { get; private set; }
+        public bool CanProcessGameplay => IsPlaying && !IsPaused;
+        public int ActiveTaskCount => activeTasks.Count;
+        public int ActiveLevelIndex { get; private set; } = -1;
+        public bool HasActiveLevel => ActiveLevelIndex >= 0 && board != null;
 
-        public event Action<int> LevelLoaded;
-        public event Action LevelRestarted;
+        public event Action<LevelResult> LevelCompleted;
+        public event Action<ColonyTask> TaskCreated;
+        public event Action<ColonyTask> TaskCompleted;
+        public event Action<ColonyTask> TaskCancelled;
 
-        private void Awake()
+        protected override void Awake()
         {
-            if (Instance != null && Instance != this)
-            {
-                Debug.LogError("Only one LevelManager may exist in a scene.", this);
-                enabled = false;
+            base.Awake();
+            if (!enabled)
                 return;
-            }
-            Instance = this;
+            if (levelBuilder == null)
+                levelBuilder = FindFirstObjectByType<ColonyLevelBuilder>();
+            if (antManager == null)
+                antManager = AntManager.Instance;
         }
 
-        public int ResolveSavedLevelIndex(int availableLevelCount)
+        protected override void OnDestroy()
         {
-            int count = Mathf.Max(1, availableLevelCount);
-            return Mathf.Clamp(PlayerPrefs.GetInt(CurrentLevelKey, 0), 0, count - 1);
+            DetachBoardEvents();
+            base.OnDestroy();
         }
 
-        public void Configure(ColonyGameplayController gameplayController,
-            AntManager gameplayAntManager, int availableLevelCount, int loadedLevelIndex)
+        public bool StartLevel(ColonyLevelData levelData, int levelIndex)
         {
-            controller = gameplayController;
-            antManager = gameplayAntManager;
-            levelCount = Mathf.Max(1, availableLevelCount);
-            CurrentLevelIndex = Mathf.Clamp(loadedLevelIndex, 0, levelCount - 1);
-            HighestUnlockedLevel = Mathf.Clamp(
-                PlayerPrefs.GetInt(HighestLevelKey, CurrentLevelIndex), 0, levelCount - 1);
-            isConfigured = true;
-        }
+            if (levelData == null || levelBuilder == null || antManager == null)
+                return false;
 
-        private void Start()
-        {
-            if (!isConfigured || controller == null)
+            UnloadLevel();
+            ActiveLevelIndex = Mathf.Max(0, levelIndex);
+            IsPlaying = false;
+            IsPaused = false;
+            if (!levelBuilder.BuildLevel(levelData))
             {
-                Debug.LogError("LevelManager was not configured by ColonyLevelBuilder.", this);
-                enabled = false;
-                return;
+                ActiveLevelIndex = -1;
+                return false;
             }
 
-            controller.StateChanged += OnGameplayStateChanged;
-            OnGameplayStateChanged(controller.State);
-            UIManager.Instance?.Open<CanvasGamePlay>();
-            LevelLoaded?.Invoke(CurrentLevelIndex);
+            IsPlaying = true;
+            EvaluateAllColonies();
+            EvaluateProgress();
+            return true;
         }
 
-        private void OnDestroy()
+        public void UnloadLevel()
         {
-            if (controller != null)
-                controller.StateChanged -= OnGameplayStateChanged;
-            if (Instance == this)
-                Instance = null;
+            IsPlaying = false;
+            IsPaused = false;
+            cleanupPending = false;
+            deadlockCandidate = false;
+            antManager?.Shutdown();
+            DetachBoardEvents();
+            activeTasks.Clear();
+            trayColonies.Clear();
+            columns.Clear();
+            board = null;
+            tray = null;
+            inputCamera = null;
+            nextTaskId = 1;
+            simulationTimer = 0f;
+            levelBuilder?.UnloadLevel();
+            ActiveLevelIndex = -1;
+        }
+
+        internal void ConfigureRuntime(PixelBoard pixelBoard, ColonyTray colonyTray,
+            Camera gameplayCamera, IEnumerable<ColonyColumn> colonyColumns,
+            bool simulateWithoutAnt, float taskInterval)
+        {
+            DetachBoardEvents();
+            board = pixelBoard;
+            tray = colonyTray;
+            inputCamera = gameplayCamera;
+            columns.Clear();
+            if (colonyColumns != null)
+                columns.AddRange(colonyColumns);
+            simulateTasks = simulateWithoutAnt;
+            simulatedTaskInterval = Mathf.Max(0.01f, taskInterval);
+            board.BoardBuilt += OnBoardBuilt;
+            board.Completed += OnBoardCompleted;
+        }
+
+        public void CopyActiveColonies(List<Colony> destination)
+        {
+            if (destination == null)
+                throw new ArgumentNullException(nameof(destination));
+            if (tray == null)
+            {
+                destination.Clear();
+                return;
+            }
+            tray.CopyColonies(destination);
+        }
+
+        public void ReevaluateProgress()
+        {
+            EvaluateAllColonies();
+            EvaluateProgress();
+        }
+
+        public void SetPaused(bool paused)
+        {
+            if (IsPlaying)
+                IsPaused = paused;
+        }
+
+        private void Update()
+        {
+            if (!CanProcessGameplay)
+                return;
+
+            HandlePointerInput();
+            if (deadlockCandidate)
+                EvaluateProgress();
+            if (!simulateTasks)
+                return;
+
+            simulationTimer += Time.deltaTime;
+            if (simulationTimer < simulatedTaskInterval)
+                return;
+            simulationTimer = 0f;
+            SimulateOneTaskPerColony();
         }
 
         private void LateUpdate()
         {
             if (!cleanupPending)
                 return;
-
             cleanupPending = false;
-            if (antManager != null)
-                antManager.CancelAll();
+            antManager?.CancelAll();
         }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        private void Update()
+        private void HandlePointerInput()
         {
-            if (!isConfigured)
+            if (inputCamera == null)
                 return;
 
-#if ENABLE_INPUT_SYSTEM
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard == null)
+            Vector2 pointerPosition;
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+                pointerPosition = Mouse.current.position.ReadValue();
+            else if (Touchscreen.current != null &&
+                     Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+                pointerPosition = Touchscreen.current.primaryTouch.position.ReadValue();
+            else
                 return;
 
-            if (keyboard.leftBracketKey.wasPressedThisFrame)
-                LoadLevel(Mathf.Max(0, CurrentLevelIndex - 1));
-            else if (keyboard.rightBracketKey.wasPressedThisFrame)
-                LoadLevel(Mathf.Min(levelCount - 1, CurrentLevelIndex + 1));
-            else if (keyboard.rKey.wasPressedThisFrame)
-                RestartLevel();
-            else if (keyboard.digit1Key.wasPressedThisFrame) LoadLevelByDisplayNumber(1);
-            else if (keyboard.digit2Key.wasPressedThisFrame) LoadLevelByDisplayNumber(2);
-            else if (keyboard.digit3Key.wasPressedThisFrame) LoadLevelByDisplayNumber(3);
-            else if (keyboard.digit4Key.wasPressedThisFrame) LoadLevelByDisplayNumber(4);
-            else if (keyboard.digit5Key.wasPressedThisFrame) LoadLevelByDisplayNumber(5);
-            else if (keyboard.digit6Key.wasPressedThisFrame) LoadLevelByDisplayNumber(6);
-            else if (keyboard.digit7Key.wasPressedThisFrame) LoadLevelByDisplayNumber(7);
-            else if (keyboard.digit8Key.wasPressedThisFrame) LoadLevelByDisplayNumber(8);
-            else if (keyboard.digit9Key.wasPressedThisFrame) LoadLevelByDisplayNumber(9);
-#endif
-        }
-
-        private void LoadLevelByDisplayNumber(int displayNumber)
-        {
-            int index = displayNumber - 1;
-            if (index >= 0 && index < levelCount)
-                LoadLevel(index);
-        }
-#endif
-
-        public void RestartLevel()
-        {
-            if (!isConfigured)
-                return;
-
-            LevelRestarted?.Invoke();
-            ReloadScene();
-        }
-
-        public void NextLevel()
-        {
-            if (!isConfigured || controller.State != LevelState.Victory)
-                return;
-
-            int nextIndex = Mathf.Min(CurrentLevelIndex + 1, levelCount - 1);
-            SaveCurrentLevel(nextIndex);
-            ReloadScene();
-        }
-
-        public void LoadLevel(int levelIndex)
-        {
-            if (!isConfigured || levelIndex < 0 || levelIndex >= levelCount)
-                return;
-
-            SaveCurrentLevel(levelIndex);
-            ReloadScene();
-        }
-
-        private void OnGameplayStateChanged(LevelState state)
-        {
-            if (state == LevelState.Victory)
+            if (EventSystem.current != null)
             {
-                HighestUnlockedLevel = Mathf.Max(
-                    HighestUnlockedLevel, Mathf.Min(CurrentLevelIndex + 1, levelCount - 1));
-                PlayerPrefs.SetInt(HighestLevelKey, HighestUnlockedLevel);
-                PlayerPrefs.Save();
-                cleanupPending = true;
-                resultCanvasOpened = UIManager.Instance != null &&
-                                     UIManager.Instance.Open<CanvasVictory>() != null;
-            }
-            else if (state == LevelState.Failed)
-            {
-                cleanupPending = true;
-                resultCanvasOpened = UIManager.Instance != null &&
-                                     UIManager.Instance.Open<CanvasFail>() != null;
-            }
-        }
-
-        private void OnGUI()
-        {
-            if (!isConfigured || controller == null || UIManager.Instance != null ||
-                resultCanvasOpened)
-                return;
-
-            float scale = Mathf.Max(1f, Screen.width / 540f);
-            GUIStyle levelStyle = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = Mathf.RoundToInt(22f * scale),
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = Color.white }
-            };
-            GUI.Label(new Rect(0f, 18f * scale, Screen.width, 42f * scale),
-                $"Level {DisplayLevelNumber}", levelStyle);
-
-            if (controller.State != LevelState.Victory && controller.State != LevelState.Failed)
-                return;
-
-            float panelWidth = Mathf.Min(Screen.width - 48f * scale, 360f * scale);
-            float panelHeight = 210f * scale;
-            Rect panel = new Rect((Screen.width - panelWidth) * 0.5f,
-                (Screen.height - panelHeight) * 0.5f, panelWidth, panelHeight);
-            GUI.Box(panel, GUIContent.none);
-
-            GUIStyle titleStyle = new GUIStyle(levelStyle)
-            {
-                fontSize = Mathf.RoundToInt(30f * scale)
-            };
-            string title = controller.State == LevelState.Victory ? "LEVEL COMPLETE" : "NO MORE MOVES";
-            GUI.Label(new Rect(panel.x, panel.y + 22f * scale, panel.width, 52f * scale),
-                title, titleStyle);
-
-            float buttonWidth = panel.width - 64f * scale;
-            Rect primaryButton = new Rect(panel.x + 32f * scale, panel.y + 92f * scale,
-                buttonWidth, 48f * scale);
-            if (controller.State == LevelState.Victory && CurrentLevelIndex < levelCount - 1)
-            {
-                if (GUI.Button(primaryButton, "NEXT LEVEL"))
-                    NextLevel();
-            }
-            else if (GUI.Button(primaryButton, "RESTART"))
-            {
-                RestartLevel();
+                bool pointerOverUi = Mouse.current != null &&
+                                     Mouse.current.leftButton.wasPressedThisFrame
+                    ? EventSystem.current.IsPointerOverGameObject()
+                    : Touchscreen.current != null && EventSystem.current.IsPointerOverGameObject(
+                        Touchscreen.current.primaryTouch.touchId.ReadValue());
+                if (pointerOverUi)
+                    return;
             }
 
-            Rect restartButton = new Rect(panel.x + 32f * scale, panel.y + 150f * scale,
-                buttonWidth, 36f * scale);
-            if (controller.State == LevelState.Victory && GUI.Button(restartButton, "REPLAY"))
-                RestartLevel();
+            Ray ray = inputCamera.ScreenPointToRay(pointerPosition);
+            if (Physics.Raycast(ray, out RaycastHit hit, 100f) &&
+                ColonyView.TryGetClickTarget(hit.collider, out ColonyView view))
+                view.HandleClick();
         }
 
-        private void SaveCurrentLevel(int index)
+        public bool SelectColumn(int columnIndex)
         {
-            CurrentLevelIndex = Mathf.Clamp(index, 0, levelCount - 1);
-            PlayerPrefs.SetInt(CurrentLevelKey, CurrentLevelIndex);
-            PlayerPrefs.Save();
+            if (!CanProcessGameplay || tray == null || !tray.HasFreeSlot ||
+                columnIndex < 0 || columnIndex >= columns.Count || columns[columnIndex] == null)
+                return false;
+
+            ColonyColumn column = columns[columnIndex];
+            Colony colony = column.Peek();
+            if (colony == null || !tray.TryAdd(colony, out _))
+                return false;
+
+            if (!column.TryTakeFront(out Colony taken) || taken != colony)
+            {
+                tray.Remove(colony);
+                throw new InvalidOperationException(
+                    "Column changed while moving a Colony to the Tray.");
+            }
+
+            EvaluateColony(colony);
+            EvaluateProgress();
+            return true;
         }
 
-        private static void ReloadScene()
+        public bool TryCreateTask(Colony colony, out ColonyTask task)
         {
-            Scene scene = SceneManager.GetActiveScene();
-            SceneManager.LoadScene(scene.buildIndex >= 0 ? scene.buildIndex : 0);
+            return TryCreateTask(colony, board.GetBorderEntrance(), null, out task);
+        }
+
+        public bool TryCreateTask(Colony colony, Vector2Int borderStart,
+            List<Vector2Int> outboundRoute, out ColonyTask task)
+        {
+            task = default;
+            if (!CanProcessGameplay || colony == null || !colony.CanReceiveTask)
+            {
+                if (colony != null)
+                    EvaluateColony(colony);
+                return false;
+            }
+
+            Vector2Int target;
+            bool reserved = outboundRoute == null
+                ? board.TryReservePixel(colony.Color, out target)
+                : board.TryReserveNearestReachablePixel(
+                    colony.Color, borderStart, out target, outboundRoute);
+            if (!reserved)
+            {
+                EvaluateColony(colony);
+                return false;
+            }
+
+            if (!colony.TryBeginTask())
+            {
+                board.ReleaseReservation(target);
+                return false;
+            }
+
+            task = new ColonyTask(nextTaskId++, colony, target);
+            activeTasks.Add(task.Id, task);
+            TaskCreated?.Invoke(task);
+            if (colony.UnassignedCount == 0)
+                tray.Remove(colony);
+            return true;
+        }
+
+        public bool CompleteTask(int taskId)
+        {
+            if (!activeTasks.TryGetValue(taskId, out ColonyTask task))
+                return false;
+            if (!board.TryCollectReservedPixel(task.Target))
+            {
+                CancelTask(taskId);
+                return false;
+            }
+
+            activeTasks.Remove(taskId);
+            task.Owner.CompleteTask();
+            TaskCompleted?.Invoke(task);
+            EvaluateAllColonies();
+            EvaluateProgress();
+            return true;
+        }
+
+        public bool CancelTask(int taskId)
+        {
+            if (!activeTasks.TryGetValue(taskId, out ColonyTask task))
+                return false;
+            activeTasks.Remove(taskId);
+            if (board != null && board.IsBuilt)
+                board.ReleaseReservation(task.Target);
+            task.Owner.CancelTask();
+            TaskCancelled?.Invoke(task);
+            EvaluateColony(task.Owner);
+            EvaluateProgress();
+            return true;
+        }
+
+        private void SimulateOneTaskPerColony()
+        {
+            tray.CopyColonies(trayColonies);
+            for (int i = 0; i < trayColonies.Count; i++)
+            {
+                Colony colony = trayColonies[i];
+                if (TryCreateTask(colony, out ColonyTask task))
+                    CompleteTask(task.Id);
+            }
+            EvaluateProgress();
+        }
+
+        private void EvaluateAllColonies()
+        {
+            if (tray == null || board == null)
+                return;
+            tray.CopyColonies(trayColonies);
+            for (int i = 0; i < trayColonies.Count; i++)
+                EvaluateColony(trayColonies[i]);
+        }
+
+        private void EvaluateColony(Colony colony)
+        {
+            if (board == null || colony == null || colony.State == ColonyState.Completed)
+                return;
+            bool canProgress = colony.InFlightCount > 0 ||
+                               (colony.UnassignedCount > 0 &&
+                                board.HasAvailablePixel(colony.Color));
+            colony.SetBlocked(!canProgress);
+        }
+
+        private void EvaluateProgress()
+        {
+            if (!CanProcessGameplay || board == null || tray == null)
+                return;
+            if (board.IsCompleted)
+            {
+                CancelDeadlockCheck();
+                FinishLevel(LevelResult.Victory);
+                return;
+            }
+            if (activeTasks.Count > 0 || (antManager != null && antManager.ActiveCount > 0))
+            {
+                CancelDeadlockCheck();
+                return;
+            }
+
+            tray.CopyColonies(trayColonies);
+            for (int i = 0; i < trayColonies.Count; i++)
+            {
+                Colony colony = trayColonies[i];
+                if (colony.State == ColonyState.MovingToTray ||
+                    (colony.CanReceiveTask && board.HasAvailablePixel(colony.Color)))
+                {
+                    CancelDeadlockCheck();
+                    return;
+                }
+            }
+
+            if (tray.HasFreeSlot)
+            {
+                for (int i = 0; i < columns.Count; i++)
+                {
+                    if (columns[i] != null && columns[i].HasColony)
+                    {
+                        CancelDeadlockCheck();
+                        return;
+                    }
+                }
+            }
+
+            if (!deadlockCandidate)
+            {
+                deadlockCandidate = true;
+                deadlockCandidateSince = Time.time;
+                return;
+            }
+            if (Time.time - deadlockCandidateSince < deadlockConfirmationDelay)
+                return;
+
+            deadlockCandidate = false;
+            FinishLevel(LevelResult.Failed);
+        }
+
+        private void CancelDeadlockCheck()
+        {
+            deadlockCandidate = false;
+        }
+
+        private void OnBoardCompleted()
+        {
+            if (CanProcessGameplay)
+                FinishLevel(LevelResult.Victory);
+        }
+
+        private void OnBoardBuilt()
+        {
+            if (CanProcessGameplay)
+            {
+                EvaluateAllColonies();
+                EvaluateProgress();
+            }
+        }
+
+        private void FinishLevel(LevelResult result)
+        {
+            if (!IsPlaying)
+                return;
+            IsPlaying = false;
+            IsPaused = false;
+            cleanupPending = true;
+            LevelCompleted?.Invoke(result);
+        }
+
+        private void DetachBoardEvents()
+        {
+            if (board == null)
+                return;
+            board.BoardBuilt -= OnBoardBuilt;
+            board.Completed -= OnBoardCompleted;
         }
     }
 }

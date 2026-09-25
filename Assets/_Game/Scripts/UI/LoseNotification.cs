@@ -9,8 +9,8 @@ namespace ColonyFlow
 
         public void Setup()
         {
-            if (enemyText != null && LevelManager.Instance != null)
-                enemyText.text = $"Level {LevelManager.Instance.DisplayLevelNumber}";
+            if (enemyText != null && GameManager.Instance != null)
+                enemyText.text = $"Level {GameManager.Instance.DisplayLevelNumber}";
         }
 
         public void UpdateEnemyText(string value)

@@ -15,7 +15,7 @@ namespace ColonyFlow
         [SerializeField] private Vector2Int size = new Vector2Int(5, 5);
         [SerializeField, Min(0.01f)] private float cellSize = 1f;
         [SerializeField] private List<PixelData> pixels = new List<PixelData>();
-        [SerializeField] private bool buildOnStart = true;
+        [SerializeField] private bool buildOnStart;
         [SerializeField] private Vector2Int debugCollectPosition;
 
         private PixelCell[] cells;
@@ -37,6 +37,7 @@ namespace ColonyFlow
         public bool IsCompleted => IsBuilt && RemainingPixels == 0;
 
         public event Action BoardBuilt;
+        public event Action BoardCleared;
         public event Action<Vector2Int, PixelColor> PixelCollected;
         public event Action Completed;
 
@@ -346,8 +347,16 @@ namespace ColonyFlow
             if (!Application.isPlaying)
                 return;
 
+            ClearBoard();
+        }
+
+        public void ClearBoard()
+        {
+            if (!IsBuilt)
+                return;
             ClearRuntimeData();
             Revision++;
+            BoardCleared?.Invoke();
         }
 
         private void ClearRuntimeData()

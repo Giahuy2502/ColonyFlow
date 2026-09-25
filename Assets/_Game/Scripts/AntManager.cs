@@ -91,7 +91,7 @@ namespace ColonyFlow
                 BuildOutboundRoute(spawnPosition, borderStart);
                 AppendTargetContactEndpoint(ant, spawnPosition, target);
                 BuildSmoothedRoute(spawnPosition, Vector3.forward, false, task.Id);
-                ant.OnInit(this, task, spawnPosition, smoothedRoute);
+                ant.OnInit(this, task, spawnPosition, smoothedRoute, target);
                 return;
             }
         }
@@ -167,13 +167,31 @@ namespace ColonyFlow
 
             float headReach = ant != null ? ant.HeadReach : 0f;
             float desiredStopDistance = board.CellSize * 0.5f + headReach;
-            // Keep the endpoint on the final approach segment so a large model
-            // cannot make the route reverse away from the target.
-            float maxStopDistance = Mathf.Max(0f, approachLength - 0.001f);
-            float stopDistance = Mathf.Min(desiredStopDistance, maxStopDistance);
-            Vector3 contactEndpoint = targetCenter - approach / approachLength * stopDistance;
+            Vector3 contactEndpoint = targetCenter -
+                approach / approachLength * desiredStopDistance;
             contactEndpoint.y = movementHeight;
-            AddUnique(worldRoute, contactEndpoint);
+
+            // The grid route already ends in the empty cell next to the target.
+            // Replace that cell centre with the actual contact point. Appending it
+            // would create a tiny or backwards segment when Head Reach is large;
+            // that segment was discarded by AddUnique and left the ant facing the
+            // preceding corner instead of the pixel.
+            if (worldRoute.Count > 0)
+                worldRoute[worldRoute.Count - 1] = contactEndpoint;
+            else
+                AddUnique(worldRoute, contactEndpoint);
+
+            RemoveDuplicateRouteEnd();
+        }
+
+        private void RemoveDuplicateRouteEnd()
+        {
+            while (worldRoute.Count > 1 &&
+                   (worldRoute[worldRoute.Count - 1] -
+                    worldRoute[worldRoute.Count - 2]).sqrMagnitude <= 0.000001f)
+            {
+                worldRoute.RemoveAt(worldRoute.Count - 2);
+            }
         }
 
         private Vector3 GetHolePosition()

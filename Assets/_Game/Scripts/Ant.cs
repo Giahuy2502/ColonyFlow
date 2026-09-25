@@ -16,7 +16,6 @@ namespace ColonyFlow
     public sealed class Ant : GameUnit
     {
         [SerializeField, Min(0.1f)] private float moveSpeed = 2.5f;
-        [SerializeField, Min(1f)] private float rotationSpeed = 720f;
         [SerializeField, Range(0f, 0.2f)] private float headReach = 0.08f;
         [SerializeField] private Renderer[] bodyRenderers;
         [SerializeField] private GameObject carriedPixelVisual;
@@ -36,6 +35,7 @@ namespace ColonyFlow
         private float actionTime;
         private Vector3 jumpStart;
         private Vector3 jumpTarget;
+        private Vector3 eatLookTarget;
         private string animName;
 
         private const string MoveAnim = "Move";
@@ -60,7 +60,8 @@ namespace ColonyFlow
         }
 
         internal void OnInit(AntManager manager, ColonyTask assignedTask,
-            Vector3 startLocalPosition, List<Vector3> outboundRoute)
+            Vector3 startLocalPosition, List<Vector3> outboundRoute,
+            Vector3 targetCenter)
         {
             owner = manager;
             EnsureResources();
@@ -68,6 +69,8 @@ namespace ColonyFlow
             movementPlaneY = startLocalPosition.y;
             startLocalPosition.y = movementPlaneY;
             transform.localPosition = startLocalPosition;
+            targetCenter.y = movementPlaneY;
+            eatLookTarget = targetCenter;
             CopyRoute(outboundRoute);
             State = AntState.MovingToTarget;
             ApplyBodyColor(assignedTask.Color);
@@ -93,6 +96,7 @@ namespace ColonyFlow
             waypointIndex = 0;
             owner = null;
             task = default;
+            eatLookTarget = Vector3.zero;
             State = AntState.Pooled;
             SetCarriedPixelVisible(false);
             if (animator != null)
@@ -134,10 +138,11 @@ namespace ColonyFlow
                 return;
             }
 
-            Vector3 frameStart = transform.localPosition;
-            frameStart.y = movementPlaneY;
-            transform.localPosition = frameStart;
+            Vector3 position = transform.localPosition;
+            position.y = movementPlaneY;
+            transform.localPosition = position;
             float remainingDistance = moveSpeed * Time.deltaTime;
+            Vector3 finalStepDirection = Vector3.zero;
 
             while (remainingDistance > 0f && waypointIndex < route.Count)
             {
@@ -153,20 +158,19 @@ namespace ColonyFlow
                 }
 
                 float step = Mathf.Min(remainingDistance, distance);
-                transform.localPosition += offset / distance * step;
+                Vector3 stepDirection = offset / distance;
+                transform.localPosition += stepDirection * step;
+                finalStepDirection = stepDirection;
                 remainingDistance -= step;
                 if (step >= distance - 0.0001f)
                     waypointIndex++;
             }
 
-            Vector3 movement = transform.localPosition - frameStart;
-            if (movement.sqrMagnitude > 0.0001f)
-            {
-                Quaternion targetRotation = Quaternion.LookRotation(
-                    movement.normalized, Vector3.up);
-                transform.localRotation = Quaternion.RotateTowards(
-                    transform.localRotation, targetRotation, rotationSpeed * Time.deltaTime);
-            }
+            // The route already contains the turn arc. Following its final tangent
+            // directly avoids adding a second, delayed rotation on tight corners.
+            if (finalStepDirection.sqrMagnitude > 0.0001f)
+                transform.localRotation = Quaternion.LookRotation(
+                    finalStepDirection, Vector3.up);
 
             if (waypointIndex >= route.Count)
                 CompleteMovementRoute();
@@ -182,6 +186,12 @@ namespace ColonyFlow
 
         private void BeginEat()
         {
+            Vector3 direction = eatLookTarget - transform.localPosition;
+            direction.y = 0f;
+            if (direction.sqrMagnitude > 0.0001f)
+                transform.localRotation = Quaternion.LookRotation(
+                    direction.normalized, Vector3.up);
+
             State = AntState.Eating;
             actionTime = 0f;
             ChangeAnim(EatAnim);

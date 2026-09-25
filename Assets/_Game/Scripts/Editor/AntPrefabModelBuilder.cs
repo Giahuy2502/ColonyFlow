@@ -21,7 +21,6 @@ namespace ColonyFlow.Editor
         {
             EditorApplication.delayCall += BuildIfNeeded;
         }
-
         private static void BuildIfNeeded() => Build(false);
 
         [MenuItem("Colony Flow/Rebuild Ant Model")]
@@ -220,6 +219,7 @@ namespace ColonyFlow.Editor
             AssetDatabase.CreateAsset(detail, DetailMaterialPath);
             return detail;
         }
+
     }
 }
 #endif

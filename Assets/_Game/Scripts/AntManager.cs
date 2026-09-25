@@ -13,6 +13,10 @@ namespace ColonyFlow
         [SerializeField, Min(0.05f)] private float holeAvoidanceRadiusZ = 0.18f;
         [SerializeField, Min(0f)] private float holeAvoidancePadding = 0.5f;
         [SerializeField, Range(3, 8)] private int holeDetourSegments = 5;
+        [Header("Path smoothing")]
+        [SerializeField, Range(0f, 0.5f)] private float outsideTurnRadius = 0.35f;
+        [SerializeField, Range(0f, 0.5f)] private float insideTurnRadius = 0.06f;
+        [SerializeField, Range(2, 16)] private int turnSegments = 8;
 
         private readonly HashSet<Ant> active = new HashSet<Ant>();
         private readonly List<Colony> colonies = new List<Colony>();
@@ -20,6 +24,9 @@ namespace ColonyFlow
             new Dictionary<Colony, float>();
         private readonly List<Vector2Int> gridRoute = new List<Vector2Int>(128);
         private readonly List<Vector3> worldRoute = new List<Vector3>(128);
+        private readonly List<Vector3> smoothedRoute = new List<Vector3>(256);
+        private readonly List<Vector3> rawRouteScratch = new List<Vector3>(128);
+        private readonly List<Vector3> pathScratch = new List<Vector3>(128);
         private PixelBoard board;
         private ColonyGameplayController controller;
         private Transform holeTarget;
@@ -28,7 +35,7 @@ namespace ColonyFlow
 
         public int ActiveCount => active.Count;
 
-        public void Configure(PixelBoard pixelBoard, ColonyGameplayController gameplayController,
+        public void OnInit(PixelBoard pixelBoard, ColonyGameplayController gameplayController,
             Transform antHoleTarget, Transform spawnedAntRoot)
         {
             board = pixelBoard;
@@ -82,7 +89,9 @@ namespace ColonyFlow
                 Vector3 spawnPosition = new Vector3(
                     colonyPosition.x, movementHeight, colonyPosition.z);
                 BuildOutboundRoute(spawnPosition, borderStart);
-                ant.Launch(this, task, spawnPosition, worldRoute, target);
+                AddUnique(worldRoute, target);
+                BuildSmoothedRoute(spawnPosition, Vector3.forward, false, task.Id);
+                ant.OnInit(this, task, spawnPosition, smoothedRoute);
                 return;
             }
         }
@@ -96,7 +105,7 @@ namespace ColonyFlow
                 !board.TryBuildReturnPath(task.Target, gridRoute))
             {
                 active.Remove(ant);
-                ant.ReturnToPool();
+                ant.OnDespawn();
                 SimplePool.Despawn(ant);
                 return;
             }
@@ -108,8 +117,10 @@ namespace ColonyFlow
                 if (gridRoute[i].y == -1)
                     break;
             }
-            AppendDirectHoleApproach();
-            ant.BeginReturn(worldRoute);
+            Vector3 holePosition = AppendHoleEdgeApproach(ant);
+            Vector3 forward = ant.transform.localRotation * Vector3.forward;
+            BuildSmoothedRoute(ant.transform.localPosition, forward, true, task.Id);
+            ant.BeginReturn(smoothedRoute, holePosition);
         }
 
         internal void NotifyEnteredHole(Ant ant)
@@ -117,7 +128,7 @@ namespace ColonyFlow
             if (ant == null || !active.Remove(ant))
                 return;
 
-            ant.ReturnToPool();
+            ant.OnDespawn();
             SimplePool.Despawn(ant);
             controller.ReevaluateProgress();
         }
@@ -153,14 +164,29 @@ namespace ColonyFlow
             return fallback;
         }
 
-        private void AppendDirectHoleApproach()
+        private Vector3 AppendHoleEdgeApproach(Ant ant)
         {
             Vector3 holePosition = GetHolePosition();
             Vector3 lastPosition = worldRoute.Count > 0
                 ? worldRoute[worldRoute.Count - 1]
                 : ToMovementPosition(board.GetBorderEntrance());
-            if ((holePosition - lastPosition).sqrMagnitude > 0.0001f)
-                worldRoute.Add(holePosition);
+            Vector3 fromHole = lastPosition - holePosition;
+            fromHole.y = 0f;
+            if (fromHole.sqrMagnitude > 0.0001f)
+            {
+                Vector2 direction = new Vector2(fromHole.x, fromHole.z).normalized;
+                float jumpDistance = ant != null ? ant.JumpStartDistanceFromHole : 0f;
+                float jumpRadiusX = holeAvoidanceRadiusX + jumpDistance;
+                float jumpRadiusZ = holeAvoidanceRadiusZ + jumpDistance;
+                float denominator = Mathf.Sqrt(
+                    direction.x * direction.x / (jumpRadiusX * jumpRadiusX) +
+                    direction.y * direction.y / (jumpRadiusZ * jumpRadiusZ));
+                float edgeDistance = denominator > 0.0001f ? 1f / denominator : jumpRadiusZ;
+                Vector3 edge = holePosition + new Vector3(direction.x, 0f, direction.y) * edgeDistance;
+                if ((edge - lastPosition).sqrMagnitude > 0.0001f)
+                    worldRoute.Add(edge);
+            }
+            return holePosition;
         }
 
         private void AppendSegmentAvoidingHole(Vector3 from, Vector3 to)
@@ -226,6 +252,212 @@ namespace ColonyFlow
             return (closest - center).sqrMagnitude < radius * radius;
         }
 
+        private void BuildSmoothedRoute(Vector3 startPosition, Vector3 startForward,
+            bool smoothInitialReverse, int taskId)
+        {
+            smoothedRoute.Clear();
+            rawRouteScratch.Clear();
+            startPosition.y = movementHeight;
+            AddUnique(rawRouteScratch, startPosition);
+            for (int i = 0; i < worldRoute.Count; i++)
+            {
+                Vector3 waypoint = worldRoute[i];
+                waypoint.y = movementHeight;
+                AddUnique(rawRouteScratch, waypoint);
+            }
+
+            CompressCollinearPath(rawRouteScratch, pathScratch);
+            if (pathScratch.Count < 2)
+                return;
+
+            int roundedPathStart = 0;
+            if (smoothInitialReverse &&
+                TryAppendInitialUTurn(startForward, taskId))
+                roundedPathStart = 1;
+
+            AppendRoundedPath(roundedPathStart);
+        }
+
+        private static void CompressCollinearPath(List<Vector3> source,
+            List<Vector3> destination)
+        {
+            destination.Clear();
+            if (source == null || source.Count == 0)
+                return;
+
+            AddUnique(destination, source[0]);
+            for (int i = 1; i < source.Count - 1; i++)
+            {
+                Vector3 previous = destination[destination.Count - 1];
+                Vector3 current = source[i];
+                Vector3 next = source[i + 1];
+                Vector3 incoming = current - previous;
+                Vector3 outgoing = next - current;
+                incoming.y = 0f;
+                outgoing.y = 0f;
+
+                float incomingLength = incoming.magnitude;
+                float outgoingLength = outgoing.magnitude;
+                if (incomingLength <= 0.0001f || outgoingLength <= 0.0001f)
+                    continue;
+
+                float directionDot = Vector3.Dot(
+                    incoming / incomingLength, outgoing / outgoingLength);
+                if (directionDot > 0.9999f)
+                    continue;
+
+                AddUnique(destination, current);
+            }
+
+            AddUnique(destination, source[source.Count - 1]);
+        }
+
+        private bool TryAppendInitialUTurn(Vector3 startForward, int taskId)
+        {
+            Vector3 start = pathScratch[0];
+            Vector3 first = pathScratch[1];
+            Vector3 toFirst = first - start;
+            toFirst.y = 0f;
+            startForward.y = 0f;
+            if (toFirst.sqrMagnitude <= 0.0001f || startForward.sqrMagnitude <= 0.0001f)
+                return false;
+
+            Vector3 forward = startForward.normalized;
+            Vector3 firstDirection = toFirst.normalized;
+            if (Vector3.Dot(forward, firstDirection) > -0.35f)
+                return false;
+
+            float desiredRadius = GetTurnRadius(start, first, first);
+            float radius = Mathf.Min(desiredRadius, toFirst.magnitude * 0.45f);
+            if (radius <= 0.0001f)
+                return false;
+
+            Vector3 endDirection = firstDirection;
+            if (pathScratch.Count > 2)
+            {
+                Vector3 nextDirection = pathScratch[2] - first;
+                nextDirection.y = 0f;
+                if (nextDirection.sqrMagnitude > 0.0001f)
+                    endDirection = nextDirection.normalized;
+            }
+
+            float sideSign = (taskId & 1) == 0 ? 1f : -1f;
+            Vector3 side = Vector3.Cross(Vector3.up, forward).normalized * sideSign;
+            Vector3 control1 = start + forward * radius + side * radius;
+            Vector3 control2 = first - endDirection * radius + side * radius;
+            int segments = Mathf.Max(2, turnSegments);
+            for (int i = 1; i <= segments; i++)
+            {
+                float t = i / (float)segments;
+                AddUnique(smoothedRoute,
+                    CubicBezier(start, control1, control2, first, t));
+            }
+            return true;
+        }
+
+        private void AppendRoundedPath(int startIndex)
+        {
+            if (startIndex >= pathScratch.Count - 1)
+                return;
+
+            for (int i = startIndex + 1; i < pathScratch.Count - 1; i++)
+            {
+                Vector3 previous = pathScratch[i - 1];
+                Vector3 corner = pathScratch[i];
+                Vector3 next = pathScratch[i + 1];
+                Vector3 incoming = corner - previous;
+                Vector3 outgoing = next - corner;
+                incoming.y = 0f;
+                outgoing.y = 0f;
+
+                float incomingLength = incoming.magnitude;
+                float outgoingLength = outgoing.magnitude;
+                if (incomingLength <= 0.0001f || outgoingLength <= 0.0001f)
+                    continue;
+
+                Vector3 incomingDirection = incoming / incomingLength;
+                Vector3 outgoingDirection = outgoing / outgoingLength;
+                float directionDot = Mathf.Clamp(
+                    Vector3.Dot(incomingDirection, outgoingDirection), -1f, 1f);
+                if (directionDot > 0.999f)
+                    continue;
+                if (directionDot < -0.999f)
+                {
+                    AddUnique(smoothedRoute, corner);
+                    continue;
+                }
+
+                float desiredRadius = GetTurnRadius(previous, corner, next);
+                float turnAngle = Mathf.Acos(directionDot);
+                float tangentScale = Mathf.Tan(turnAngle * 0.5f);
+                if (desiredRadius <= 0.0001f || tangentScale <= 0.0001f)
+                {
+                    AddUnique(smoothedRoute, corner);
+                    continue;
+                }
+
+                float tangentDistance = Mathf.Min(desiredRadius * tangentScale,
+                    Mathf.Min(incomingLength, outgoingLength) * 0.45f);
+                float effectiveRadius = tangentDistance / tangentScale;
+                Vector3 entry = corner - incomingDirection * tangentDistance;
+                Vector3 exit = corner + outgoingDirection * tangentDistance;
+                float turnSign = Mathf.Sign(
+                    Vector3.Cross(incomingDirection, outgoingDirection).y);
+                Vector3 center = entry +
+                    Vector3.Cross(Vector3.up, incomingDirection) *
+                    (effectiveRadius * turnSign);
+                Vector3 startRadial = entry - center;
+                Vector3 endRadial = exit - center;
+
+                AddUnique(smoothedRoute, entry);
+                float angleDegrees = turnAngle * Mathf.Rad2Deg;
+                int segments = Mathf.Max(2,
+                    Mathf.CeilToInt(turnSegments * angleDegrees / 90f));
+                for (int segment = 1; segment <= segments; segment++)
+                {
+                    float t = segment / (float)segments;
+                    Vector3 radial = Vector3.Slerp(startRadial, endRadial, t);
+                    AddUnique(smoothedRoute, center + radial);
+                }
+            }
+
+            AddUnique(smoothedRoute, pathScratch[pathScratch.Count - 1]);
+        }
+
+        private float GetTurnRadius(Vector3 previous, Vector3 corner, Vector3 next)
+        {
+            return IsOutsideBoard(previous) && IsOutsideBoard(corner) && IsOutsideBoard(next)
+                ? outsideTurnRadius
+                : insideTurnRadius;
+        }
+
+        private bool IsOutsideBoard(Vector3 position)
+        {
+            float maxX = (board.Size.x - 1) * board.CellSize;
+            float maxZ = (board.Size.y - 1) * board.CellSize;
+            return position.x < 0f || position.z < 0f ||
+                   position.x > maxX || position.z > maxZ;
+        }
+
+        private static Vector3 CubicBezier(Vector3 start, Vector3 control1,
+            Vector3 control2, Vector3 end, float t)
+        {
+            float inverse = 1f - t;
+            float inverseSquared = inverse * inverse;
+            float tSquared = t * t;
+            return inverseSquared * inverse * start +
+                   3f * inverseSquared * t * control1 +
+                   3f * inverse * tSquared * control2 +
+                   tSquared * t * end;
+        }
+
+        private static void AddUnique(List<Vector3> points, Vector3 point)
+        {
+            if (points.Count == 0 ||
+                (points[points.Count - 1] - point).sqrMagnitude > 0.000001f)
+                points.Add(point);
+        }
+
         public void CancelAll()
         {
             var snapshot = new List<Ant>(active);
@@ -233,7 +465,7 @@ namespace ColonyFlow
             {
                 controller.CancelTask(ant.TaskId);
                 active.Remove(ant);
-                ant.ReturnToPool();
+                ant.OnDespawn();
                 SimplePool.Despawn(ant);
             }
         }

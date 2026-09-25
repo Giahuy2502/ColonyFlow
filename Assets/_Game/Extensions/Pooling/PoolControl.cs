@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+[DefaultExecutionOrder(-200)]
 public class PoolControl : MonoBehaviour
 {
     [SerializeField] PoolAmount[] poolAmounts;
@@ -25,18 +26,5 @@ public class PoolAmount
 }
 public enum PoolType
 {
-    Knife = 0,
-    Hammer = 1,
-    Boomerang = 2,
-    Bot = 3,
-    SpeedUpBooster = 4,
-    AttackRangeBooster = 5,
-    Axe = 6,
-    Axe1 = 7,
-    Candy =8,
-    Candy1 = 9,
-    Candy2 = 10,
-    Candy3 = 11,
-    Uzi = 12,
-    Ant = 100,
+        Ant = 100,
 }

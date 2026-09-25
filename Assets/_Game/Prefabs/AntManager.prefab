@@ -42,3 +42,6 @@ MonoBehaviour:
   maxActiveAnts: 64
   spawnInterval: 0.35
   movementHeight: 0
+  outsideTurnRadius: 0.35
+  insideTurnRadius: 0.06
+  turnSegments: 8

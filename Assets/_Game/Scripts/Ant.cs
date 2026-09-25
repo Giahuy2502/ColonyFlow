@@ -7,28 +7,44 @@ namespace ColonyFlow
     {
         Pooled,
         MovingToTarget,
-        ReturningToHole
+        Eating,
+        ReturningToHole,
+        Jumping
     }
 
     [DisallowMultipleComponent]
     public sealed class Ant : GameUnit
     {
         [SerializeField, Min(0.1f)] private float moveSpeed = 2.5f;
-        [SerializeField, Min(0.01f)] private float arrivalDistance = 0.03f;
+        [SerializeField, Min(1f)] private float rotationSpeed = 720f;
         [SerializeField] private Renderer[] bodyRenderers;
         [SerializeField] private GameObject carriedPixelVisual;
         [SerializeField] private Renderer carriedPixelRenderer;
+        [SerializeField] private Animator animator;
+        [SerializeField, Min(0.05f)] private float eatDuration = 0.28f;
+        [SerializeField, Min(0.05f)] private float jumpDuration = 0.42f;
+        [SerializeField, Min(0f)] private float jumpHeight = 0.18f;
+        [SerializeField, Min(0f)] private float jumpStartDistanceFromHole = 0.08f;
 
         private readonly List<Vector3> route = new List<Vector3>(64);
         private AntManager owner;
         private ColonyTask task;
-        private Vector3 targetPosition;
         private float movementPlaneY;
         private int waypointIndex;
         private MaterialPropertyBlock propertyBlock;
+        private float actionTime;
+        private Vector3 jumpStart;
+        private Vector3 jumpTarget;
+        private string animName;
+
+        private const string MoveAnim = "Move";
+        private const string EatAnim = "Eat";
+        private const string JumpAnim = "Jump";
+        private const string IdleAnim = "Idle";
 
         public AntState State { get; private set; } = AntState.Pooled;
         public int TaskId => task.Id;
+        internal float JumpStartDistanceFromHole => jumpStartDistanceFromHole;
 
         private void Awake()
         {
@@ -38,36 +54,38 @@ namespace ColonyFlow
         internal void PrepareForPool()
         {
             EnsureResources();
-            ReturnToPool();
+            OnDespawn();
         }
 
-        internal void Launch(AntManager manager, ColonyTask assignedTask,
-            Vector3 startLocalPosition, List<Vector3> outboundRoute, Vector3 targetLocalPosition)
+        internal void OnInit(AntManager manager, ColonyTask assignedTask,
+            Vector3 startLocalPosition, List<Vector3> outboundRoute)
         {
             owner = manager;
             EnsureResources();
             task = assignedTask;
             movementPlaneY = startLocalPosition.y;
             startLocalPosition.y = movementPlaneY;
-            targetLocalPosition.y = movementPlaneY;
             transform.localPosition = startLocalPosition;
-            targetPosition = targetLocalPosition;
             CopyRoute(outboundRoute);
             State = AntState.MovingToTarget;
             ApplyBodyColor(assignedTask.Color);
             SetCarriedPixelVisible(false);
             gameObject.SetActive(true);
+            ChangeAnim(MoveAnim);
         }
 
-        internal void BeginReturn(List<Vector3> returnRoute)
+        internal void BeginReturn(List<Vector3> returnRoute, Vector3 holdPosition)
         {
+            holdPosition.y = movementPlaneY;
+            jumpTarget = holdPosition;
             CopyRoute(returnRoute);
             State = AntState.ReturningToHole;
             ApplyRendererColor(carriedPixelRenderer, task.Color);
             SetCarriedPixelVisible(true);
+            ChangeAnim(MoveAnim);
         }
 
-        internal void ReturnToPool()
+        internal void OnDespawn()
         {
             route.Clear();
             waypointIndex = 0;
@@ -75,6 +93,13 @@ namespace ColonyFlow
             task = default;
             State = AntState.Pooled;
             SetCarriedPixelVisible(false);
+            if (animator != null)
+            {
+                animator.Rebind();
+                animator.Update(0f);
+            }
+            animName = null;
+            ChangeAnim(IdleAnim);
         }
 
         private void Update()
@@ -82,38 +107,120 @@ namespace ColonyFlow
             if (State == AntState.Pooled)
                 return;
 
-            if (State == AntState.ReturningToHole && waypointIndex >= route.Count)
+            if (State == AntState.Eating)
             {
-                owner.NotifyEnteredHole(this);
+                actionTime += Time.deltaTime;
+                if (actionTime >= eatDuration)
+                    owner.NotifyTargetReached(this, task);
                 return;
             }
 
-            Vector3 destination = waypointIndex < route.Count ? route[waypointIndex] : targetPosition;
-            destination.y = movementPlaneY;
-            Vector3 currentPosition = transform.localPosition;
-            if (!Mathf.Approximately(currentPosition.y, movementPlaneY))
+            if (State == AntState.Jumping)
             {
-                currentPosition.y = movementPlaneY;
-                transform.localPosition = currentPosition;
-            }
-            Vector3 offset = destination - transform.localPosition;
-            if (offset.sqrMagnitude > arrivalDistance * arrivalDistance)
-            {
-                transform.localPosition = Vector3.MoveTowards(
-                    transform.localPosition, destination, moveSpeed * Time.deltaTime);
-                if (offset.sqrMagnitude > 0.0001f)
-                    transform.localRotation = Quaternion.LookRotation(offset.normalized, Vector3.up);
+                UpdateJump();
                 return;
             }
 
-            transform.localPosition = destination;
-            if (waypointIndex < route.Count)
+            UpdateMovement();
+        }
+
+        private void UpdateMovement()
+        {
+            if (waypointIndex >= route.Count)
             {
-                waypointIndex++;
+                CompleteMovementRoute();
                 return;
             }
 
-            owner.NotifyTargetReached(this, task);
+            Vector3 frameStart = transform.localPosition;
+            frameStart.y = movementPlaneY;
+            transform.localPosition = frameStart;
+            float remainingDistance = moveSpeed * Time.deltaTime;
+
+            while (remainingDistance > 0f && waypointIndex < route.Count)
+            {
+                Vector3 destination = route[waypointIndex];
+                destination.y = movementPlaneY;
+                Vector3 offset = destination - transform.localPosition;
+                float distance = offset.magnitude;
+                if (distance <= 0.0001f)
+                {
+                    transform.localPosition = destination;
+                    waypointIndex++;
+                    continue;
+                }
+
+                float step = Mathf.Min(remainingDistance, distance);
+                transform.localPosition += offset / distance * step;
+                remainingDistance -= step;
+                if (step >= distance - 0.0001f)
+                    waypointIndex++;
+            }
+
+            Vector3 movement = transform.localPosition - frameStart;
+            if (movement.sqrMagnitude > 0.0001f)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(
+                    movement.normalized, Vector3.up);
+                transform.localRotation = Quaternion.RotateTowards(
+                    transform.localRotation, targetRotation, rotationSpeed * Time.deltaTime);
+            }
+
+            if (waypointIndex >= route.Count)
+                CompleteMovementRoute();
+        }
+
+        private void CompleteMovementRoute()
+        {
+            if (State == AntState.ReturningToHole)
+                BeginJump();
+            else
+                BeginEat();
+        }
+
+        private void BeginEat()
+        {
+            State = AntState.Eating;
+            actionTime = 0f;
+            ChangeAnim(EatAnim);
+        }
+
+        private void BeginJump()
+        {
+            State = AntState.Jumping;
+            actionTime = 0f;
+            jumpStart = transform.localPosition;
+            Vector3 direction = jumpTarget - jumpStart;
+            direction.y = 0f;
+            if (direction.sqrMagnitude > 0.0001f)
+                transform.localRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            ChangeAnim(JumpAnim);
+        }
+
+        private void UpdateJump()
+        {
+            actionTime += Time.deltaTime;
+            float progress = Mathf.Clamp01(actionTime / jumpDuration);
+            Vector3 position = Vector3.Lerp(jumpStart, jumpTarget, progress);
+            position.y += 4f * jumpHeight * progress * (1f - progress);
+            transform.localPosition = position;
+            if (progress < 1f)
+                return;
+
+            SetCarriedPixelVisible(false);
+            owner.NotifyEnteredHole(this);
+        }
+
+        public void ChangeAnim(string anim)
+        {
+            if (animator == null || string.IsNullOrEmpty(anim) || animName == anim)
+                return;
+
+            if (!string.IsNullOrEmpty(animName))
+                animator.ResetTrigger(animName);
+
+            animName = anim;
+            animator.SetTrigger(animName);
         }
 
         private void CopyRoute(List<Vector3> source)

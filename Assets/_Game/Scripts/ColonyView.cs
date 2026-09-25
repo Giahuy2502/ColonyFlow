@@ -116,17 +116,17 @@ namespace ColonyFlow
             }
         }
 
-        private void LateUpdate()
-        {
-            if (countText == null)
-                return;
-            if (mainCamera == null)
-                mainCamera = Camera.main;
-            if (mainCamera != null)
-                countText.transform.rotation = Quaternion.LookRotation(
-                    countText.transform.position - mainCamera.transform.position,
-                    mainCamera.transform.up);
-        }
+        // private void LateUpdate()
+        // {
+        //     if (countText == null)
+        //         return;
+        //     if (mainCamera == null)
+        //         mainCamera = Camera.main;
+        //     if (mainCamera != null)
+        //         countText.transform.rotation = Quaternion.LookRotation(
+        //             countText.transform.position - mainCamera.transform.position,
+        //             mainCamera.transform.up);
+        // }
 
         private void RefreshCount(Colony changed)
         {

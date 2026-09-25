@@ -90,7 +90,7 @@ namespace ColonyFlow
             CreateHole();
             CreateColumns();
             controller.Configure(board, tray, gameplayCamera, columns, simulateWithoutAnt, simulatedTaskInterval);
-            antManager.Configure(board, controller, antHole, antsRoot);
+            antManager.OnInit(board, controller, antHole, antsRoot);
             levelManager.Configure(controller, antManager,
                 levels.Count > 0 ? levels.Count : 1, loadedLevelIndex);
             InitializeViews();

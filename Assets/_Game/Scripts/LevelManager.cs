@@ -263,6 +263,7 @@ namespace ColonyFlow
                     "Column changed while moving a Colony to the Tray.");
             }
 
+            SoundManager.Instance?.PlaySfx(SfxId.ColonySelect);
             EvaluateColony(colony);
             EvaluateProgress();
             return true;
@@ -329,6 +330,7 @@ namespace ColonyFlow
 
             activeTasks.Remove(taskId);
             task.Owner.CompleteTask();
+            SoundManager.Instance?.PlaySfx(SfxId.PixelCollect);
             TaskCompleted?.Invoke(task);
             EvaluateAllColonies();
             EvaluateProgress();

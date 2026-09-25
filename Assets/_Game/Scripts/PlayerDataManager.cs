@@ -7,9 +7,11 @@ namespace ColonyFlow
     [Serializable]
     public sealed class PlayerData
     {
-        public int version = 1;
+        public int version = 2;
         public int currentLevelIndex;
         public int highestUnlockedLevel;
+        public bool musicEnabled = true;
+        public bool sfxEnabled = true;
     }
 
     [DefaultExecutionOrder(-300)]
@@ -48,7 +50,12 @@ namespace ColonyFlow
             }
 
             Data = loaded ?? new PlayerData();
-            Data.version = Mathf.Max(1, Data.version);
+            if (Data.version < 2)
+            {
+                Data.musicEnabled = true;
+                Data.sfxEnabled = true;
+            }
+            Data.version = 2;
             Data.highestUnlockedLevel = Mathf.Max(
                 Data.highestUnlockedLevel, Data.currentLevelIndex);
             Data.highestUnlockedLevel = Mathf.Clamp(Data.highestUnlockedLevel, 0, maxIndex);
@@ -68,6 +75,22 @@ namespace ColonyFlow
             int maxIndex = Mathf.Max(0, levelCount - 1);
             Data.highestUnlockedLevel = Mathf.Max(
                 Data.highestUnlockedLevel, Mathf.Clamp(levelIndex, 0, maxIndex));
+        }
+
+        public void SetMusicEnabled(bool enabledValue)
+        {
+            if (Data.musicEnabled == enabledValue)
+                return;
+            Data.musicEnabled = enabledValue;
+            Save();
+        }
+
+        public void SetSfxEnabled(bool enabledValue)
+        {
+            if (Data.sfxEnabled == enabledValue)
+                return;
+            Data.sfxEnabled = enabledValue;
+            Save();
         }
 
         public void Save()

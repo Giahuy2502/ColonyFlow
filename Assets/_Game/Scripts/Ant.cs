@@ -195,6 +195,7 @@ namespace ColonyFlow
 
             State = AntState.Eating;
             actionTime = 0f;
+            SoundManager.Instance?.PlaySfx(SfxId.AntEat);
             ChangeAnim(EatAnim);
         }
 
@@ -202,6 +203,7 @@ namespace ColonyFlow
         {
             State = AntState.Jumping;
             actionTime = 0f;
+            SoundManager.Instance?.PlaySfx(SfxId.AntJump);
             jumpStart = transform.localPosition;
             Vector3 direction = jumpTarget - jumpStart;
             direction.y = 0f;

@@ -11,7 +11,7 @@ namespace ColonyFlow.Editor
     [InitializeOnLoad]
     internal static class ColonyFlowUiBuilder
     {
-        private const string VersionName = "Colony Flow UI v7";
+        private const string VersionName = "Colony Flow UI v8";
         private static readonly Color Navy = new Color(0.12f, 0.22f, 0.38f, 0.97f);
         private static readonly Color Cream = new Color(1f, 0.93f, 0.78f, 1f);
         private static readonly Color Orange = new Color(1f, 0.63f, 0.20f, 1f);
@@ -158,9 +158,22 @@ namespace ColonyFlow.Editor
             GameObject root = CreateCanvas("Canvas-Setting");
             CanvasSettings controller = root.AddComponent<CanvasSettings>();
             RectTransform safe = CreateModalBase(root, controller, "PAUSED", out _);
+
+            RectTransform audioControls = CreateRect("Audio Controls", safe);
+            SetRect(audioControls, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 80f), new Vector2(650f, 120f));
+            Button music = CreateButton("Music", audioControls,
+                new Vector2(-160f, 0f), new Vector2(290f, 94f),
+                "MUSIC: ON", Navy, Cream);
+            Button sfx = CreateButton("SFX", audioControls,
+                new Vector2(160f, 0f), new Vector2(290f, 94f),
+                "SFX: ON", Navy, Cream);
+            UnityEventTools.AddPersistentListener(music.onClick, controller.MusicButton);
+            UnityEventTools.AddPersistentListener(sfx.onClick, controller.SfxButton);
+
             RectTransform buttons = CreateRect("Gameplay Buttons", safe);
             SetRect(buttons, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -130f), new Vector2(620f, 430f));
+                new Vector2(0f, -180f), new Vector2(620f, 390f));
             Button resume = CreateButton("Continue", buttons, new Vector2(0f, 120f), new Vector2(560f, 110f),
                 "CONTINUE", Color.white, Orange);
             Button retry = CreateButton("Retry", buttons, new Vector2(0f, -15f), new Vector2(500f, 96f),
@@ -172,6 +185,10 @@ namespace ColonyFlow.Editor
             UnityEventTools.AddPersistentListener(home.onClick, controller.MainMenuButton);
             SerializedObject serialized = new SerializedObject(controller);
             serialized.FindProperty("gameplayButtons").objectReferenceValue = buttons.gameObject;
+            serialized.FindProperty("musicButtonText").objectReferenceValue =
+                music.GetComponentInChildren<TextMeshProUGUI>();
+            serialized.FindProperty("sfxButtonText").objectReferenceValue =
+                sfx.GetComponentInChildren<TextMeshProUGUI>();
             serialized.ApplyModifiedPropertiesWithoutUndo();
             Save(root, path);
         }
@@ -260,6 +277,7 @@ namespace ColonyFlow.Editor
             SetRect(rect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), position, size);
             Button button = rect.gameObject.AddComponent<Button>();
             button.targetGraphic = rect.GetComponent<RoundedFrameGraphic>();
+            rect.gameObject.AddComponent<UIButtonSound>();
 
             RoundedFrameGraphic outline = CreateFrame("Outline", rect,
                 new Color(1f, 1f, 1f, 0.82f), radius, 5f);

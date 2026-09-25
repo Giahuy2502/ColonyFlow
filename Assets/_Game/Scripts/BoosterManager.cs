@@ -76,6 +76,7 @@ namespace ColonyFlow
                 return false;
 
             addTrayUsed = true;
+            SoundManager.Instance?.PlaySfx(SfxId.BoosterAddTray);
             StateChanged?.Invoke();
             levelManager.ReevaluateProgress();
             return true;
@@ -88,7 +89,10 @@ namespace ColonyFlow
                         levelBuilder != null && levelBuilder.ShuffleRemainingColonies(
                             shuffleAnimationDuration);
             if (used)
+            {
+                SoundManager.Instance?.PlaySfx(SfxId.BoosterShuffle);
                 StateChanged?.Invoke();
+            }
             return used;
         }
 
@@ -153,6 +157,7 @@ namespace ColonyFlow
                 throw new InvalidOperationException(
                     "Tray capacity changed while applying Pick Hidden Colony booster.");
 
+            SoundManager.Instance?.PlaySfx(SfxId.BoosterPick);
             levelManager.ReevaluateProgress();
             StateChanged?.Invoke();
             return true;
@@ -173,6 +178,7 @@ namespace ColonyFlow
             if (removedPixels <= 0)
                 return false;
 
+            SoundManager.Instance?.PlaySfx(SfxId.BoosterClearColor);
             StateChanged?.Invoke();
             if (levelManager.IsPlaying)
                 levelManager.ReevaluateProgress();

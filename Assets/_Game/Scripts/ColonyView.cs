@@ -245,6 +245,7 @@ namespace ColonyFlow
             isMoving = false;
             disappearTime = 0f;
             activateOnArrival = false;
+            SoundManager.Instance?.PlaySfx(SfxId.ColonyDisappear);
             if (clickCollider != null)
                 clickCollider.enabled = false;
 

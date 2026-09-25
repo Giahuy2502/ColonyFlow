@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace ColonyFlow
 {
@@ -13,6 +14,10 @@ namespace ColonyFlow
             if (safeAreaRoot == null)
                 safeAreaRoot = transform as RectTransform;
             ApplySafeArea();
+            Button[] buttons = GetComponentsInChildren<Button>(true);
+            for (int i = 0; i < buttons.Length; i++)
+                if (buttons[i].GetComponent<UIButtonSound>() == null)
+                    buttons[i].gameObject.AddComponent<UIButtonSound>();
         }
 
         public virtual void Setup() { }

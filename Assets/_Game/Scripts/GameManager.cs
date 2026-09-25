@@ -164,6 +164,7 @@ namespace ColonyFlow
 
             doubleSpeed = false;
             SetState(GameState.Playing);
+            SoundManager.Instance?.PlayMusic(MusicId.Gameplay);
             UIManager.Instance?.Open<CanvasGamePlay>();
             ApplyGameSpeed();
         }
@@ -173,6 +174,8 @@ namespace ColonyFlow
             Time.timeScale = 1f;
             if (result == LevelResult.Victory)
             {
+                SoundManager.Instance?.StopMusic(0.25f);
+                SoundManager.Instance?.PlaySfx(SfxId.Victory);
                 int nextIndex = Mathf.Min(
                     levelManager.ActiveLevelIndex + 1, dataManager.LevelCount - 1);
                 dataManager.UnlockLevel(nextIndex);
@@ -182,6 +185,8 @@ namespace ColonyFlow
             }
             else
             {
+                SoundManager.Instance?.StopMusic(0.25f);
+                SoundManager.Instance?.PlaySfx(SfxId.Failed);
                 SetState(GameState.Failed);
                 UIManager.Instance?.Open<CanvasFail>();
             }
@@ -193,6 +198,7 @@ namespace ColonyFlow
             Time.timeScale = 0f;
             UIManager.Instance?.CloseAll();
             SetState(GameState.MainMenu);
+            SoundManager.Instance?.PlayMusic(MusicId.MainMenu);
             UIManager.Instance?.Open<CanvasMainMenu>();
         }
 

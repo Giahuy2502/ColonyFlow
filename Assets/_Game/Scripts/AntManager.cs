@@ -87,6 +87,7 @@ namespace ColonyFlow
                     return;
                 }
                 active.Add(ant);
+                SoundManager.Instance?.PlaySfx(SfxId.AntSpawn);
 
                 Vector3 target = ToMovementPosition(task.Target);
                 Vector3 spawnPosition =

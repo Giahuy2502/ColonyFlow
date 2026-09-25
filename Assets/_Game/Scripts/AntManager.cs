@@ -89,7 +89,7 @@ namespace ColonyFlow
                 Vector3 spawnPosition = new Vector3(
                     colonyPosition.x, movementHeight, colonyPosition.z);
                 BuildOutboundRoute(spawnPosition, borderStart);
-                AddUnique(worldRoute, target);
+                AppendTargetContactEndpoint(ant, spawnPosition, target);
                 BuildSmoothedRoute(spawnPosition, Vector3.forward, false, task.Id);
                 ant.OnInit(this, task, spawnPosition, smoothedRoute);
                 return;
@@ -148,6 +148,32 @@ namespace ColonyFlow
         private Vector3 ToMovementPosition(Vector2Int gridPosition)
         {
             return board.GridToLocalPosition(gridPosition) + Vector3.up * movementHeight;
+        }
+
+        private void AppendTargetContactEndpoint(Ant ant, Vector3 spawnPosition,
+            Vector3 targetCenter)
+        {
+            Vector3 approachStart = worldRoute.Count > 0
+                ? worldRoute[worldRoute.Count - 1]
+                : spawnPosition;
+            Vector3 approach = targetCenter - approachStart;
+            approach.y = 0f;
+            float approachLength = approach.magnitude;
+            if (approachLength <= 0.0001f)
+            {
+                AddUnique(worldRoute, targetCenter);
+                return;
+            }
+
+            float headReach = ant != null ? ant.HeadReach : 0f;
+            float desiredStopDistance = board.CellSize * 0.5f + headReach;
+            // Keep the endpoint on the final approach segment so a large model
+            // cannot make the route reverse away from the target.
+            float maxStopDistance = Mathf.Max(0f, approachLength - 0.001f);
+            float stopDistance = Mathf.Min(desiredStopDistance, maxStopDistance);
+            Vector3 contactEndpoint = targetCenter - approach / approachLength * stopDistance;
+            contactEndpoint.y = movementHeight;
+            AddUnique(worldRoute, contactEndpoint);
         }
 
         private Vector3 GetHolePosition()

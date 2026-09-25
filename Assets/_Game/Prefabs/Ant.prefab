@@ -50,6 +50,7 @@ MonoBehaviour:
   poolType: 100
   moveSpeed: 1.5
   rotationSpeed: 720
+  headReach: 0.2
   bodyRenderers:
   - {fileID: 8878260253692158083}
   - {fileID: 2003572235344961944}
@@ -133,13 +134,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2000}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.08694343, y: 0.06949102, z: -0.0060796766, w: 0.993768}
-  m_LocalPosition: {x: 0, y: 0.085, z: 0.225}
-  m_LocalScale: {x: 0.12, y: 0.075, z: 0.12}
-  m_ConstrainProportionsScale: 0
+  m_LocalRotation: {x: -0.32945412, y: -0.27381837, z: 0.0012455912, w: 0.90359384}
+  m_LocalPosition: {x: 0.005100011, y: 0.10590001, z: 0.2825}
+  m_LocalScale: {x: 0.12, y: 0.12, z: 0.12}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 1001}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: -36.491, y: -38.064, z: 13.133}
 --- !u!33 &2002
 MeshFilter:
   m_ObjectHideFlags: 0

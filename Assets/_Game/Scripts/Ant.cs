@@ -17,6 +17,7 @@ namespace ColonyFlow
     {
         [SerializeField, Min(0.1f)] private float moveSpeed = 2.5f;
         [SerializeField, Min(1f)] private float rotationSpeed = 720f;
+        [SerializeField, Range(0f, 0.2f)] private float headReach = 0.08f;
         [SerializeField] private Renderer[] bodyRenderers;
         [SerializeField] private GameObject carriedPixelVisual;
         [SerializeField] private Renderer carriedPixelRenderer;
@@ -44,6 +45,7 @@ namespace ColonyFlow
 
         public AntState State { get; private set; } = AntState.Pooled;
         public int TaskId => task.Id;
+        internal float HeadReach => headReach;
         internal float JumpStartDistanceFromHole => jumpStartDistanceFromHole;
 
         private void Awake()

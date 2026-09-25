@@ -26,12 +26,12 @@ namespace ColonyFlow
             Target = target;
         }
     }
-
     [DisallowMultipleComponent]
     public sealed class LevelManager : Singleton<LevelManager>
     {
         [SerializeField] private ColonyLevelBuilder levelBuilder;
         [SerializeField] private AntManager antManager;
+        [SerializeField] private BoosterManager boosterManager;
         [SerializeField, Min(0f)] private float deadlockConfirmationDelay = 0.75f;
 
         private readonly Dictionary<int, ColonyTask> activeTasks =
@@ -55,6 +55,7 @@ namespace ColonyFlow
         public int ActiveTaskCount => activeTasks.Count;
         public int ActiveLevelIndex { get; private set; } = -1;
         public bool HasActiveLevel => ActiveLevelIndex >= 0 && board != null;
+        public BoosterManager BoosterManager => boosterManager;
 
         public event Action<LevelResult> LevelCompleted;
         public event Action<ColonyTask> TaskCreated;
@@ -70,6 +71,10 @@ namespace ColonyFlow
                 levelBuilder = FindFirstObjectByType<ColonyLevelBuilder>();
             if (antManager == null)
                 antManager = AntManager.Instance;
+            if (boosterManager == null)
+                boosterManager = GetComponent<BoosterManager>();
+            if (boosterManager == null)
+                boosterManager = gameObject.AddComponent<BoosterManager>();
         }
 
         protected override void OnDestroy()
@@ -105,6 +110,7 @@ namespace ColonyFlow
             IsPaused = false;
             cleanupPending = false;
             deadlockCandidate = false;
+            boosterManager?.UnloadLevel();
             antManager?.Shutdown();
             DetachBoardEvents();
             activeTasks.Clear();
@@ -130,6 +136,7 @@ namespace ColonyFlow
             columns.Clear();
             if (colonyColumns != null)
                 columns.AddRange(colonyColumns);
+            boosterManager?.Configure(this, levelBuilder, antManager, board, tray, columns);
             simulateTasks = simulateWithoutAnt;
             simulatedTaskInterval = Mathf.Max(0.01f, taskInterval);
             board.BoardBuilt += OnBoardBuilt;
@@ -157,7 +164,11 @@ namespace ColonyFlow
         public void SetPaused(bool paused)
         {
             if (IsPlaying)
+            {
                 IsPaused = paused;
+                if (paused)
+                    boosterManager?.CancelTargetMode();
+            }
         }
 
         private void Update()
@@ -212,9 +223,26 @@ namespace ColonyFlow
             }
 
             Ray ray = inputCamera.ScreenPointToRay(pointerPosition);
+            if (boosterManager != null && boosterManager.HandleBoardTarget(ray))
+                return;
+
             if (Physics.Raycast(ray, out RaycastHit hit, 100f) &&
                 ColonyView.TryGetClickTarget(hit.collider, out ColonyView view))
                 view.HandleClick();
+        }
+
+        public void HandleColonyClick(ColonyView view, int columnIndex)
+        {
+            if (view == null || view.Colony == null)
+                return;
+
+            if (boosterManager != null &&
+                boosterManager.HandleColonyTarget(view.Colony, columnIndex))
+                return;
+
+            if (boosterManager == null ||
+                boosterManager.TargetMode == BoosterTargetMode.None)
+                SelectColumn(columnIndex);
         }
 
         public bool SelectColumn(int columnIndex)
@@ -238,6 +266,14 @@ namespace ColonyFlow
             EvaluateColony(colony);
             EvaluateProgress();
             return true;
+        }
+
+        internal void CopyTaskIdsByColor(PixelColor color, List<int> destination)
+        {
+            destination.Clear();
+            foreach (KeyValuePair<int, ColonyTask> pair in activeTasks)
+                if (pair.Value.Color == color)
+                    destination.Add(pair.Key);
         }
 
         public bool TryCreateTask(Colony colony, out ColonyTask task)
@@ -301,6 +337,11 @@ namespace ColonyFlow
 
         public bool CancelTask(int taskId)
         {
+            return CancelTask(taskId, true);
+        }
+
+        internal bool CancelTask(int taskId, bool reevaluate)
+        {
             if (!activeTasks.TryGetValue(taskId, out ColonyTask task))
                 return false;
             activeTasks.Remove(taskId);
@@ -308,8 +349,11 @@ namespace ColonyFlow
                 board.ReleaseReservation(task.Target);
             task.Owner.CancelTask();
             TaskCancelled?.Invoke(task);
-            EvaluateColony(task.Owner);
-            EvaluateProgress();
+            if (reevaluate)
+            {
+                EvaluateColony(task.Owner);
+                EvaluateProgress();
+            }
             return true;
         }
 
@@ -423,6 +467,7 @@ namespace ColonyFlow
                 return;
             IsPlaying = false;
             IsPaused = false;
+            boosterManager?.CancelTargetMode();
             cleanupPending = true;
             LevelCompleted?.Invoke(result);
         }

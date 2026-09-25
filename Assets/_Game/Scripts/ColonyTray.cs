@@ -43,6 +43,16 @@ namespace ColonyFlow
             Initialize();
         }
 
+        public bool ExpandCapacity(int amount)
+        {
+            if (amount <= 0 || slots == null)
+                return false;
+
+            capacity += amount;
+            Array.Resize(ref slots, capacity);
+            return true;
+        }
+
         public bool TryAdd(Colony colony, out int slotIndex)
         {
             slotIndex = -1;

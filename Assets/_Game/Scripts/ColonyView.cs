@@ -121,6 +121,18 @@ namespace ColonyFlow
             ChangeAnim(MoveAnim);
         }
 
+        public void MoveToColumnPositionOverDuration(Vector3 position, float duration)
+        {
+            targetLocalPosition = position;
+            float distance = Vector3.Distance(transform.localPosition, targetLocalPosition);
+            currentMoveSpeed = distance / Mathf.Max(0.01f, duration);
+            if (distance <= 0.0001f)
+                return;
+
+            isMoving = true;
+            ChangeAnim(MoveAnim);
+        }
+
         public void MoveToTray(Vector3 position)
         {
             targetLocalPosition = position;
@@ -128,6 +140,22 @@ namespace ColonyFlow
             activateOnArrival = true;
             isMoving = true;
             ChangeAnim(MoveAnim);
+        }
+
+        public void MoveWithinTray(Vector3 position)
+        {
+            targetLocalPosition = position;
+            currentMoveSpeed = columnReflowSpeed;
+            if ((transform.localPosition - targetLocalPosition).sqrMagnitude <= 0.0001f)
+                return;
+
+            isMoving = true;
+            ChangeAnim(MoveAnim);
+        }
+
+        internal void SetOwnerColumn(int ownerColumn)
+        {
+            columnIndex = ownerColumn;
         }
 
         public void PlayDisappear()
@@ -151,7 +179,7 @@ namespace ColonyFlow
         public void HandleClick()
         {
             if (levelManager != null && colony != null && colony.State == ColonyState.InColumn)
-                levelManager.SelectColumn(columnIndex);
+                levelManager.HandleColonyClick(this, columnIndex);
         }
 
         private void Update()

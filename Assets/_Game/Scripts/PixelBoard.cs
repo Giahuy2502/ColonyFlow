@@ -267,6 +267,47 @@ namespace ColonyFlow
         public bool TryCollectReservedPixel(Vector2Int position) => TryCollect(position, true);
         public bool TryCollectPixel(Vector2Int position) => TryCollect(position, false);
 
+        public int RemoveAllPixels(PixelColor color)
+        {
+            if (!IsBuilt || !IsValidColor(color))
+                return 0;
+
+            var removedPositions = new List<Vector2Int>();
+            for (int index = 0; index < cells.Length; index++)
+            {
+                PixelCell cell = cells[index];
+                if (!cell.IsOccupied || cell.Color != color)
+                    continue;
+
+                removedPositions.Add(ToPosition(index));
+                cell.State = PixelCellState.Empty;
+                cell.IsOutsideReachable = false;
+                cells[index] = cell;
+                RemainingPixels--;
+            }
+
+            if (removedPositions.Count == 0)
+                return 0;
+
+            availableByColor[(int)color].Clear();
+            for (int index = 0; index < cells.Length; index++)
+            {
+                PixelCell cell = cells[index];
+                cell.IsOutsideReachable = false;
+                cells[index] = cell;
+            }
+            BuildOutsideReachability();
+            RebuildAvailableTargets();
+            Revision++;
+
+            for (int i = 0; i < removedPositions.Count; i++)
+                PixelCollected?.Invoke(removedPositions[i], color);
+
+            if (IsCompleted)
+                Completed?.Invoke();
+            return removedPositions.Count;
+        }
+
         public List<Vector2Int> GetAvailablePixels(PixelColor color)
         {
             var result = new List<Vector2Int>();

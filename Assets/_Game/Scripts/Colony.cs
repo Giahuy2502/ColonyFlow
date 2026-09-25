@@ -110,6 +110,18 @@ namespace ColonyFlow
             SetState(blocked && InFlightCount == 0 ? ColonyState.Blocked : ColonyState.Active);
         }
 
+        internal void RemoveByBooster()
+        {
+            if (State == ColonyState.Completed)
+                return;
+
+            InFlightCount = 0;
+            RemainingCount = 0;
+            CountChanged?.Invoke(this);
+            SetState(ColonyState.Completed);
+            Completed?.Invoke(this);
+        }
+
         private void SetState(ColonyState next)
         {
             if (State == next)

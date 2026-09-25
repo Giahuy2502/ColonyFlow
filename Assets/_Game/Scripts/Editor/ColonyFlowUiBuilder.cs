@@ -11,7 +11,7 @@ namespace ColonyFlow.Editor
     [InitializeOnLoad]
     internal static class ColonyFlowUiBuilder
     {
-        private const string VersionName = "Colony Flow UI v6";
+        private const string VersionName = "Colony Flow UI v7";
         private static readonly Color Navy = new Color(0.12f, 0.22f, 0.38f, 0.97f);
         private static readonly Color Cream = new Color(1f, 0.93f, 0.78f, 1f);
         private static readonly Color Orange = new Color(1f, 0.63f, 0.20f, 1f);
@@ -82,22 +82,42 @@ namespace ColonyFlow.Editor
             RectTransform boosters = CreateRoundedPanel("Boosters", safe, Purple, 54f);
             SetRect(boosters, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 78f), new Vector2(1080f, 156f));
-            string[] icons = { "↶", "↻", "◎", "✦" };
-            string[] names = { "UNDO", "SHUFFLE", "MAGNET", "PAINT" };
+            string[] icons = { "+", "↻", "↓", "✦" };
+            string[] names = { "ADD_TRAY", "SHUFFLE", "PICK", "CLEAR_COLOR" };
+            var boosterButtons = new Button[icons.Length];
+            var boosterCounts = new TextMeshProUGUI[icons.Length];
             for (int i = 0; i < icons.Length; i++)
             {
                 float x = (i - 1.5f) * 225f;
                 Button button = CreateButton(names[i], boosters, new Vector2(x, 28f),
                     new Vector2(132f, 132f), icons[i], Brown, Cream);
-                TextMeshProUGUI count = CreateText("Count", button.transform, "1", 23, Color.white);
+                TextMeshProUGUI count = CreateText("Count", button.transform,
+                    i == 0 ? "1" : "∞", 23, Color.white);
                 count.alignment = TextAlignmentOptions.Center;
                 SetRect(count.rectTransform, new Vector2(1f, 0f), new Vector2(1f, 0f),
                     new Vector2(-8f, 8f), new Vector2(38f, 38f));
+                boosterButtons[i] = button;
+                boosterCounts[i] = count;
             }
+
+            TextMeshProUGUI boosterPrompt = CreateText(
+                "Booster Prompt", safe, string.Empty, 26, Brown);
+            SetRect(boosterPrompt.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 178f), new Vector2(760f, 48f));
+            boosterPrompt.gameObject.SetActive(false);
 
             SerializedObject serialized = new SerializedObject(controller);
             serialized.FindProperty("aliveText").objectReferenceValue = level;
             serialized.FindProperty("speedText").objectReferenceValue = speed.GetComponentInChildren<TextMeshProUGUI>();
+            serialized.FindProperty("addTrayButton").objectReferenceValue = boosterButtons[0];
+            serialized.FindProperty("shuffleButton").objectReferenceValue = boosterButtons[1];
+            serialized.FindProperty("pickHiddenButton").objectReferenceValue = boosterButtons[2];
+            serialized.FindProperty("removeColorButton").objectReferenceValue = boosterButtons[3];
+            serialized.FindProperty("addTrayCountText").objectReferenceValue = boosterCounts[0];
+            serialized.FindProperty("shuffleCountText").objectReferenceValue = boosterCounts[1];
+            serialized.FindProperty("pickHiddenCountText").objectReferenceValue = boosterCounts[2];
+            serialized.FindProperty("removeColorCountText").objectReferenceValue = boosterCounts[3];
+            serialized.FindProperty("boosterPromptText").objectReferenceValue = boosterPrompt;
             serialized.ApplyModifiedPropertiesWithoutUndo();
             Save(root, path);
         }

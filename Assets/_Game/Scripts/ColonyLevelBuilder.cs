@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -60,12 +61,17 @@ namespace ColonyFlow
         private readonly Dictionary<Colony, ColonyView> views =
             new Dictionary<Colony, ColonyView>();
         private readonly List<Vector3> trayPositions = new List<Vector3>();
+        private readonly List<Transform> traySlots = new List<Transform>();
         private readonly List<PixelData> generatedPixels = new List<PixelData>();
         private readonly List<ColonyColumnSpec> columnData = new List<ColonyColumnSpec>();
+        private readonly List<Colony> colonyScratch = new List<Colony>();
+        private readonly List<Colony> shuffledColonies = new List<Colony>();
+        private readonly List<int> remainingCounts = new List<int>();
         private ColonyTray tray;
         private Transform antHole;
         private int trayCapacity;
         private bool columnLayoutRefreshPending;
+        private float pendingColumnAnimationDuration = -1f;
 
         private void Awake()
         {
@@ -84,7 +90,9 @@ namespace ColonyFlow
                 return;
 
             columnLayoutRefreshPending = false;
-            RefreshColumnPositions();
+            float animationDuration = pendingColumnAnimationDuration;
+            pendingColumnAnimationDuration = -1f;
+            RefreshColumnPositions(animationDuration);
         }
 
         public bool BuildLevel(ColonyLevelData levelData)
@@ -140,11 +148,16 @@ namespace ColonyFlow
             columnViews.Clear();
             views.Clear();
             trayPositions.Clear();
+            traySlots.Clear();
             generatedPixels.Clear();
             columnData.Clear();
+            colonyScratch.Clear();
+            shuffledColonies.Clear();
+            remainingCounts.Clear();
             tray = null;
             antHole = null;
             columnLayoutRefreshPending = false;
+            pendingColumnAnimationDuration = -1f;
         }
 
         private bool ValidateReferences()
@@ -172,18 +185,150 @@ namespace ColonyFlow
 
         private void CreateTraySlots()
         {
+            for (int i = 0; i < trayCapacity; i++)
+            {
+                Transform slot = Instantiate(traySlotPrefab, tray.transform);
+                slot.name = $"Tray Slot {i + 1}";
+                slot.localRotation = Quaternion.identity;
+                traySlots.Add(slot);
+            }
+            RefreshTrayLayout(false);
+        }
+
+        public bool TryExpandTray()
+        {
+            if (tray == null || !tray.ExpandCapacity(1))
+                return false;
+
+            trayCapacity = tray.Capacity;
+            Transform slot = Instantiate(traySlotPrefab, tray.transform);
+            slot.name = $"Tray Slot {trayCapacity}";
+            slot.localRotation = Quaternion.identity;
+            Vector3 targetScale = slot.localScale;
+            slot.localScale = Vector3.zero;
+            traySlots.Add(slot);
+            RefreshTrayLayout(true);
+            StartCoroutine(PopTraySlot(slot, targetScale));
+            return true;
+        }
+
+        public bool ShuffleRemainingColonies(float animationDuration)
+        {
+            shuffledColonies.Clear();
+            remainingCounts.Clear();
+            for (int i = 0; i < columns.Count; i++)
+            {
+                columns[i].CopyRemaining(colonyScratch);
+                remainingCounts.Add(colonyScratch.Count);
+                shuffledColonies.AddRange(colonyScratch);
+            }
+
+            if (shuffledColonies.Count < 2)
+                return false;
+
+            var originalOrder = new List<Colony>(shuffledColonies);
+            for (int i = shuffledColonies.Count - 1; i > 0; i--)
+            {
+                int swapIndex = UnityEngine.Random.Range(0, i + 1);
+                (shuffledColonies[i], shuffledColonies[swapIndex]) =
+                    (shuffledColonies[swapIndex], shuffledColonies[i]);
+            }
+
+            bool changed = false;
+            for (int i = 0; i < shuffledColonies.Count; i++)
+            {
+                if (shuffledColonies[i] == originalOrder[i])
+                    continue;
+                changed = true;
+                break;
+            }
+            if (!changed)
+            {
+                Colony first = shuffledColonies[0];
+                shuffledColonies.RemoveAt(0);
+                shuffledColonies.Add(first);
+            }
+
+            int sourceIndex = 0;
+            for (int columnIndex = 0; columnIndex < columns.Count; columnIndex++)
+            {
+                colonyScratch.Clear();
+                columnViews[columnIndex].Clear();
+                int count = remainingCounts[columnIndex];
+                for (int i = 0; i < count; i++)
+                {
+                    Colony colony = shuffledColonies[sourceIndex++];
+                    colonyScratch.Add(colony);
+                    colony.transform.SetParent(columns[columnIndex].transform, true);
+                    if (views.TryGetValue(colony, out ColonyView view))
+                    {
+                        view.SetOwnerColumn(columnIndex);
+                        columnViews[columnIndex].Add(view);
+                    }
+                }
+                columns[columnIndex].ReplaceRemaining(colonyScratch);
+            }
+
+            pendingColumnAnimationDuration = Mathf.Max(0.01f, animationDuration);
+            columnLayoutRefreshPending = true;
+            return true;
+        }
+
+        public int RemoveColoniesByColor(PixelColor color)
+        {
+            colonyScratch.Clear();
+            for (int i = 0; i < columns.Count; i++)
+                columns[i].RemoveColor(color, colonyScratch);
+
+            foreach (Colony colony in views.Keys)
+            {
+                if (colony != null && colony.Color == color &&
+                    !colonyScratch.Contains(colony))
+                    colonyScratch.Add(colony);
+            }
+
+            for (int i = 0; i < colonyScratch.Count; i++)
+                colonyScratch[i].RemoveByBooster();
+
+            columnLayoutRefreshPending = true;
+            return colonyScratch.Count;
+        }
+
+        private void RefreshTrayLayout(bool animateColonies)
+        {
+            trayPositions.Clear();
             float center = (board.Size.x - 1) * board.CellSize * 0.5f;
             const float spacing = 0.9f;
             float startX = center - (trayCapacity - 1) * spacing * 0.5f;
             for (int i = 0; i < trayCapacity; i++)
             {
-                Vector3 position = new Vector3(startX + i * spacing, 0f, -2.65f);
-                trayPositions.Add(position + Vector3.up * 0.35f);
-                Transform slot = Instantiate(traySlotPrefab, tray.transform);
-                slot.name = $"Tray Slot {i + 1}";
-                slot.localPosition = position;
-                slot.localRotation = Quaternion.identity;
+                Vector3 slotPosition = new Vector3(startX + i * spacing, 0f, -2.65f);
+                trayPositions.Add(slotPosition + Vector3.up * 0.35f);
+                if (i < traySlots.Count && traySlots[i] != null)
+                    traySlots[i].localPosition = slotPosition;
+
+                Colony colony = tray.GetSlot(i);
+                if (animateColonies && colony != null &&
+                    views.TryGetValue(colony, out ColonyView view))
+                    view.MoveWithinTray(trayPositions[i]);
             }
+        }
+
+        private static IEnumerator PopTraySlot(Transform slot, Vector3 targetScale)
+        {
+            const float duration = 0.22f;
+            float elapsed = 0f;
+            while (slot != null && elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float progress = Mathf.Clamp01(elapsed / duration);
+                float eased = 1f - Mathf.Pow(1f - progress, 3f);
+                float overshoot = 1f + Mathf.Sin(progress * Mathf.PI) * 0.12f;
+                slot.localScale = targetScale * eased * overshoot;
+                yield return null;
+            }
+            if (slot != null)
+                slot.localScale = targetScale;
         }
 
         private void CreateColumns()
@@ -250,7 +395,7 @@ namespace ColonyFlow
                 view.PlayDisappear();
         }
 
-        private void RefreshColumnPositions()
+        private void RefreshColumnPositions(float animationDuration)
         {
             float center = (board.Size.x - 1) * board.CellSize * 0.5f;
             const float spacing = 0.9f;
@@ -272,8 +417,14 @@ namespace ColonyFlow
                 int depth = 0;
                 foreach (ColonyView view in columnViews[columnIndex])
                     if (view.Colony.State == ColonyState.InColumn)
-                        view.MoveToColumnPosition(
-                            ColumnPosition(startX, spacing, compactColumnIndex, depth++));
+                    {
+                        Vector3 target = ColumnPosition(
+                            startX, spacing, compactColumnIndex, depth++);
+                        if (animationDuration > 0f)
+                            view.MoveToColumnPositionOverDuration(target, animationDuration);
+                        else
+                            view.MoveToColumnPosition(target);
+                    }
                 compactColumnIndex++;
             }
         }

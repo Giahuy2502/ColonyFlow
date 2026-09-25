@@ -45,6 +45,7 @@ namespace ColonyFlow
 
         public AntState State { get; private set; } = AntState.Pooled;
         public int TaskId => task.Id;
+        internal bool IsTaskColor(PixelColor color) => task.Owner != null && task.Color == color;
         internal float HeadReach => headReach;
         internal float JumpStartDistanceFromHole => jumpStartDistanceFromHole;
 

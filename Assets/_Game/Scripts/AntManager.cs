@@ -507,11 +507,39 @@ namespace ColonyFlow
             var snapshot = new List<Ant>(active);
             foreach (Ant ant in snapshot)
             {
+                if (ant == null)
+                {
+                    active.Remove(ant);
+                    continue;
+                }
                 levelManager?.CancelTask(ant.TaskId);
                 active.Remove(ant);
                 ant.OnDespawn();
                 SimplePool.Despawn(ant);
             }
+        }
+
+        public int CancelByColor(PixelColor color)
+        {
+            int cancelled = 0;
+            var snapshot = new List<Ant>(active);
+            foreach (Ant ant in snapshot)
+            {
+                if (ant == null)
+                {
+                    active.Remove(ant);
+                    continue;
+                }
+                if (!ant.IsTaskColor(color))
+                    continue;
+
+                levelManager?.CancelTask(ant.TaskId, false);
+                active.Remove(ant);
+                ant.OnDespawn();
+                SimplePool.Despawn(ant);
+                cancelled++;
+            }
+            return cancelled;
         }
 
         public void Shutdown()

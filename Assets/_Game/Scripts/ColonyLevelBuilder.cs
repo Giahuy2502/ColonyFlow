@@ -65,6 +65,7 @@ namespace ColonyFlow
         private ColonyTray tray;
         private Transform antHole;
         private int trayCapacity;
+        private bool columnLayoutRefreshPending;
 
         private void Awake()
         {
@@ -75,6 +76,15 @@ namespace ColonyFlow
         private void OnDestroy()
         {
             UnloadLevel();
+        }
+
+        private void LateUpdate()
+        {
+            if (!columnLayoutRefreshPending)
+                return;
+
+            columnLayoutRefreshPending = false;
+            RefreshColumnPositions();
         }
 
         public bool BuildLevel(ColonyLevelData levelData)
@@ -134,6 +144,7 @@ namespace ColonyFlow
             columnData.Clear();
             tray = null;
             antHole = null;
+            columnLayoutRefreshPending = false;
         }
 
         private bool ValidateReferences()
@@ -228,27 +239,42 @@ namespace ColonyFlow
                 view.transform.SetParent(colonyTraysRoot, true);
                 view.MoveToTray(trayPositions[slotIndex]);
             }
-            RefreshColumnPositions();
+            // ColonyAdded fires before ColonyColumn.TryTakeFront updates the
+            // column. Reflow in LateUpdate after the column state is current.
+            columnLayoutRefreshPending = true;
         }
 
         private void OnColonyRemoved(int slotIndex, Colony colony)
         {
             if (views.TryGetValue(colony, out ColonyView view))
-                view.gameObject.SetActive(false);
+                view.PlayDisappear();
         }
 
         private void RefreshColumnPositions()
         {
             float center = (board.Size.x - 1) * board.CellSize * 0.5f;
             const float spacing = 0.9f;
-            float startX = center - (columnViews.Count - 1) * spacing * 0.5f;
+            int activeColumnCount = 0;
+            for (int i = 0; i < columns.Count; i++)
+                if (columns[i] != null && columns[i].HasColony)
+                    activeColumnCount++;
+
+            if (activeColumnCount == 0)
+                return;
+
+            float startX = center - (activeColumnCount - 1) * spacing * 0.5f;
+            int compactColumnIndex = 0;
             for (int columnIndex = 0; columnIndex < columnViews.Count; columnIndex++)
             {
+                if (columns[columnIndex] == null || !columns[columnIndex].HasColony)
+                    continue;
+
                 int depth = 0;
                 foreach (ColonyView view in columnViews[columnIndex])
                     if (view.Colony.State == ColonyState.InColumn)
-                        view.SetTargetLocalPosition(
-                            ColumnPosition(startX, spacing, columnIndex, depth++));
+                        view.MoveToColumnPosition(
+                            ColumnPosition(startX, spacing, compactColumnIndex, depth++));
+                compactColumnIndex++;
             }
         }
 

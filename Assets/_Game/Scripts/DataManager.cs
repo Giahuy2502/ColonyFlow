@@ -22,14 +22,19 @@ namespace ColonyFlow
 
             if (gameData == null)
                 gameData = Resources.Load<GameData>("GameData");
+            if (gameData != null)
+                PixelColorUtility.SetDefault(gameData.PixelColorPalette);
             if (playerDataManager == null)
                 playerDataManager = PlayerDataManager.Instance != null
                     ? PlayerDataManager.Instance
                     : GetComponent<PlayerDataManager>();
 
-            if (gameData == null || gameData.LevelCount == 0 || playerDataManager == null)
+            if (gameData == null || gameData.PixelColorPalette == null ||
+                gameData.LevelCount == 0 || playerDataManager == null)
             {
-                Debug.LogError("DataManager requires GameData and PlayerDataManager.", this);
+                Debug.LogError(
+                    "DataManager requires GameData with a Pixel Color Palette, and PlayerDataManager.",
+                    this);
                 enabled = false;
                 return;
             }

@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 91ab01fdbbe84d15a989cf9418ccf101, type: 3}
   m_Name: GameData
   m_EditorClassIdentifier: Assembly-CSharp::ColonyFlow.GameData
+  pixelColorPalette: {fileID: 11400000, guid: 52a719d99e4a4ae8bd880a2a9fc2ee80, type: 2}
   levels:
   - {fileID: 11400000, guid: c50d2abe98e94c368c86f6b4578eb865, type: 2}
   - {fileID: 11400000, guid: a7a271f81c3e47ccad57f40b6b1f5e27, type: 2}

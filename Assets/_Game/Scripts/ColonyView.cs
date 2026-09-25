@@ -11,7 +11,10 @@ namespace ColonyFlow
         [SerializeField] private TextMesh countText;
         [SerializeField] private Renderer countRenderer;
         [SerializeField] private Collider clickCollider;
+        [SerializeField] private Animator animator;
         [SerializeField, Min(0.1f)] private float moveSpeed = 8f;
+        [SerializeField, Min(0.1f)] private float columnReflowSpeed = 4f;
+        [SerializeField, Min(0.01f)] private float disappearDuration = 0.32f;
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
@@ -20,10 +23,19 @@ namespace ColonyFlow
         private LevelManager levelManager;
         private int columnIndex;
         private Vector3 targetLocalPosition;
+        private float currentMoveSpeed;
         private Camera mainCamera;
         private bool activateOnArrival;
+        private bool isMoving;
+        private bool isDisappearing;
+        private float disappearTime;
+        private string animName;
         private static readonly Dictionary<Collider, ColonyView> ClickTargets = new Dictionary<Collider, ColonyView>();
         private static Font runtimeFont;
+
+        private const string IdleAnim = "Idle";
+        private const string MoveAnim = "Move";
+        private const string DisappearAnim = "Disappear";
 
         public Colony Colony => colony;
 
@@ -60,7 +72,18 @@ namespace ColonyFlow
             levelManager = gameplayLevelManager;
             columnIndex = ownerColumn;
             targetLocalPosition = transform.localPosition;
+            currentMoveSpeed = moveSpeed;
             mainCamera = Camera.main;
+            isMoving = false;
+            isDisappearing = false;
+            disappearTime = 0f;
+            animName = null;
+            if (animator != null)
+            {
+                animator.Rebind();
+                animator.Update(0f);
+            }
+            ChangeAnim(IdleAnim);
 
             if (bodyRenderer == null)
                 throw new MissingReferenceException($"{name}: ColonyView requires a serialized Renderer reference.");
@@ -73,14 +96,43 @@ namespace ColonyFlow
         public void SetTargetLocalPosition(Vector3 position, bool immediate = false)
         {
             targetLocalPosition = position;
+            currentMoveSpeed = moveSpeed;
             if (immediate)
+            {
                 transform.localPosition = position;
+                isMoving = false;
+                ChangeAnim(IdleAnim);
+            }
+            else if ((transform.localPosition - targetLocalPosition).sqrMagnitude > 0.0001f)
+            {
+                isMoving = true;
+                ChangeAnim(MoveAnim);
+            }
+        }
+
+        public void MoveToColumnPosition(Vector3 position)
+        {
+            targetLocalPosition = position;
+            currentMoveSpeed = columnReflowSpeed;
+            if ((transform.localPosition - targetLocalPosition).sqrMagnitude <= 0.0001f)
+                return;
+
+            isMoving = true;
+            ChangeAnim(MoveAnim);
         }
 
         public void MoveToTray(Vector3 position)
         {
             targetLocalPosition = position;
+            currentMoveSpeed = moveSpeed;
             activateOnArrival = true;
+            isMoving = true;
+            ChangeAnim(MoveAnim);
+        }
+
+        public void PlayDisappear()
+        {
+            BeginDisappear();
         }
 
         private void OnDestroy()
@@ -104,15 +156,31 @@ namespace ColonyFlow
 
         private void Update()
         {
-            transform.localPosition = Vector3.MoveTowards(
-                transform.localPosition, targetLocalPosition, moveSpeed * Time.deltaTime);
+            if (isDisappearing)
+            {
+                disappearTime += Time.deltaTime;
+                if (disappearTime >= disappearDuration)
+                    gameObject.SetActive(false);
+                return;
+            }
 
-            if (activateOnArrival &&
-                (transform.localPosition - targetLocalPosition).sqrMagnitude <= 0.0001f)
+            transform.localPosition = Vector3.MoveTowards(
+                transform.localPosition, targetLocalPosition, currentMoveSpeed * Time.deltaTime);
+
+            if ((transform.localPosition - targetLocalPosition).sqrMagnitude <= 0.0001f)
             {
                 transform.localPosition = targetLocalPosition;
-                activateOnArrival = false;
-                colony.Activate();
+                if (isMoving)
+                {
+                    isMoving = false;
+                    ChangeAnim(IdleAnim);
+                }
+
+                if (activateOnArrival)
+                {
+                    activateOnArrival = false;
+                    colony.Activate();
+                }
             }
         }
 
@@ -137,7 +205,40 @@ namespace ColonyFlow
         private void OnStateChanged(Colony changed, ColonyState state)
         {
             if (state == ColonyState.Completed)
+                BeginDisappear();
+        }
+
+        private void BeginDisappear()
+        {
+            if (isDisappearing)
+                return;
+
+            isDisappearing = true;
+            isMoving = false;
+            disappearTime = 0f;
+            activateOnArrival = false;
+            if (clickCollider != null)
+                clickCollider.enabled = false;
+
+            if (animator == null || animator.runtimeAnimatorController == null)
+            {
                 gameObject.SetActive(false);
+                return;
+            }
+
+            ChangeAnim(DisappearAnim);
+        }
+
+        private void ChangeAnim(string anim)
+        {
+            if (animator == null || string.IsNullOrEmpty(anim) || animName == anim)
+                return;
+
+            if (!string.IsNullOrEmpty(animName))
+                animator.ResetTrigger(animName);
+
+            animName = anim;
+            animator.SetTrigger(animName);
         }
 
         private void ApplyColor()

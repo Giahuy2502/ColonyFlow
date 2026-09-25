@@ -42,15 +42,12 @@ namespace ColonyFlow
         [SerializeField] private ColonyTray trayPrefab;
         [SerializeField] private AntManager antManager;
         [SerializeField] private Transform traySlotPrefab;
-        [SerializeField] private Transform holePrefab;
+        [SerializeField] private Transform antHole;
 
         [Header("Hierarchy roots")]
         [SerializeField] private Transform antsRoot;
         [SerializeField] private Transform coloniesRoot;
         [SerializeField] private Transform colonyTraysRoot;
-
-        [Header("Layout")]
-        [SerializeField, Min(0f)] private float holeDistanceBelowBoard = 0.55f;
 
         [Header("Gameplay")]
         [SerializeField] private bool simulateWithoutAnt;
@@ -68,7 +65,6 @@ namespace ColonyFlow
         private readonly List<Colony> shuffledColonies = new List<Colony>();
         private readonly List<int> remainingCounts = new List<int>();
         private ColonyTray tray;
-        private Transform antHole;
         private int trayCapacity;
         private bool columnLayoutRefreshPending;
         private float pendingColumnAnimationDuration = -1f;
@@ -115,7 +111,6 @@ namespace ColonyFlow
             tray.name = "Colony Tray";
             tray.Configure(trayCapacity);
             CreateTraySlots();
-            CreateHole();
             CreateColumns();
             InitializeViews();
             tray.ColonyAdded += OnColonyAdded;
@@ -141,7 +136,6 @@ namespace ColonyFlow
             for (int i = 0; i < columns.Count; i++)
                 DeactivateAndDestroy(columns[i] != null ? columns[i].gameObject : null);
             DeactivateAndDestroy(tray != null ? tray.gameObject : null);
-            DeactivateAndDestroy(antHole != null ? antHole.gameObject : null);
 
             board?.ClearBoard();
             columns.Clear();
@@ -155,7 +149,6 @@ namespace ColonyFlow
             shuffledColonies.Clear();
             remainingCounts.Clear();
             tray = null;
-            antHole = null;
             columnLayoutRefreshPending = false;
             pendingColumnAnimationDuration = -1f;
         }
@@ -164,23 +157,12 @@ namespace ColonyFlow
         {
             if (board != null && levelManager != null && gameplayCamera != null &&
                 colonyPrefab != null && columnPrefab != null && trayPrefab != null &&
-                antManager != null && traySlotPrefab != null && holePrefab != null &&
+                antManager != null && traySlotPrefab != null && antHole != null &&
                 antsRoot != null && coloniesRoot != null && colonyTraysRoot != null)
                 return true;
 
             Debug.LogError("ColonyLevelBuilder has missing serialized references.", this);
             return false;
-        }
-
-        private void CreateHole()
-        {
-            antHole = Instantiate(holePrefab, colonyTraysRoot);
-            antHole.name = "Ant Hole";
-            float boardCenterX = (board.Size.x - 1) * board.CellSize * 0.5f;
-            float bottomBorderZ = -board.CellSize * 0.55f;
-            antHole.localPosition = new Vector3(
-                boardCenterX, 0f, bottomBorderZ - holeDistanceBelowBoard);
-            antHole.localRotation = Quaternion.identity;
         }
 
         private void CreateTraySlots()

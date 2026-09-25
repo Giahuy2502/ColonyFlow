@@ -69,8 +69,11 @@ namespace ColonyFlow
                     Time.time < nextSpawnTime)
                     continue;
 
-                Vector3 colonyPosition = colony.transform.localPosition;
-                Vector2Int borderStart = board.GetClosestBottomBorder(colonyPosition.x);
+                Vector3 colonyWorldPosition = colony.transform.position;
+                Vector3 colonyBoardPosition =
+                    board.transform.InverseTransformPoint(colonyWorldPosition);
+                Vector2Int borderStart =
+                    board.GetClosestBottomBorder(colonyBoardPosition.x);
                 if (!levelManager.TryCreateTask(colony, borderStart, gridRoute,
                         out ColonyTask task))
                     continue;
@@ -85,9 +88,10 @@ namespace ColonyFlow
                 }
                 active.Add(ant);
 
-                Vector3 target = board.GridToLocalPosition(task.Target) + Vector3.up * movementHeight;
-                Vector3 spawnPosition = new Vector3(
-                    colonyPosition.x, movementHeight, colonyPosition.z);
+                Vector3 target = ToMovementPosition(task.Target);
+                Vector3 spawnPosition =
+                    antRoot.InverseTransformPoint(colonyWorldPosition);
+                spawnPosition.y = movementHeight;
                 BuildOutboundRoute(spawnPosition, borderStart);
                 AppendTargetContactEndpoint(ant, spawnPosition, target);
                 BuildSmoothedRoute(spawnPosition, Vector3.forward, false, task.Id);
@@ -147,7 +151,11 @@ namespace ColonyFlow
 
         private Vector3 ToMovementPosition(Vector2Int gridPosition)
         {
-            return board.GridToLocalPosition(gridPosition) + Vector3.up * movementHeight;
+            Vector3 worldPosition = board.transform.TransformPoint(
+                board.GridToLocalPosition(gridPosition));
+            Vector3 antLocalPosition = antRoot.InverseTransformPoint(worldPosition);
+            antLocalPosition.y = movementHeight;
+            return antLocalPosition;
         }
 
         private void AppendTargetContactEndpoint(Ant ant, Vector3 spawnPosition,

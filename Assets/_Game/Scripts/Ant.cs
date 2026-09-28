@@ -20,6 +20,9 @@ namespace ColonyFlow
         [SerializeField] private Renderer[] bodyRenderers;
         [SerializeField] private GameObject carriedPixelVisual;
         [SerializeField] private Renderer carriedPixelRenderer;
+        [SerializeField, Range(0.1f, 1.5f)]
+        [Tooltip("Visual size of the carried pixel relative to a board pixel in the current map.")]
+        private float carriedPixelSizeMultiplier = 0.9f;
         [SerializeField] private Animator animator;
         [SerializeField, Min(0.05f)] private float eatDuration = 0.28f;
         [SerializeField, Min(0.05f)] private float jumpDuration = 0.42f;
@@ -62,7 +65,7 @@ namespace ColonyFlow
 
         internal void OnInit(AntManager manager, ColonyTask assignedTask,
             Vector3 startLocalPosition, List<Vector3> outboundRoute,
-            Vector3 targetCenter)
+            Vector3 targetCenter, Vector3 carriedPixelWorldScale)
         {
             owner = manager;
             EnsureResources();
@@ -75,6 +78,7 @@ namespace ColonyFlow
             CopyRoute(outboundRoute);
             State = AntState.MovingToTarget;
             ApplyBodyColor(assignedTask.Color);
+            SetCarriedPixelWorldScale(carriedPixelWorldScale);
             SetCarriedPixelVisible(false);
             gameObject.SetActive(true);
             ChangeAnim(MoveAnim);
@@ -277,6 +281,28 @@ namespace ColonyFlow
         {
             if (carriedPixelVisual != null && carriedPixelVisual.activeSelf != visible)
                 carriedPixelVisual.SetActive(visible);
+        }
+
+        private void SetCarriedPixelWorldScale(Vector3 worldScale)
+        {
+            if (carriedPixelVisual == null)
+                return;
+
+            worldScale *= carriedPixelSizeMultiplier;
+            Transform carriedTransform = carriedPixelVisual.transform;
+            Transform parent = carriedTransform.parent;
+            Vector3 parentScale = parent != null ? parent.lossyScale : Vector3.one;
+            carriedTransform.localScale = new Vector3(
+                SafeScaleDivision(worldScale.x, parentScale.x),
+                SafeScaleDivision(worldScale.y, parentScale.y),
+                SafeScaleDivision(worldScale.z, parentScale.z));
+        }
+
+        private static float SafeScaleDivision(float worldScale, float parentScale)
+        {
+            return Mathf.Approximately(parentScale, 0f)
+                ? worldScale
+                : worldScale / Mathf.Abs(parentScale);
         }
 
         private void EnsureResources()

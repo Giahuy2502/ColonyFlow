@@ -7,13 +7,9 @@ namespace ColonyFlow
     public class UICanvas : MonoBehaviour
     {
         [SerializeField] private bool isDestroyOnClose;
-        [SerializeField] private RectTransform safeAreaRoot;
 
         protected virtual void Awake()
         {
-            if (safeAreaRoot == null)
-                safeAreaRoot = transform as RectTransform;
-            ApplySafeArea();
             Button[] buttons = GetComponentsInChildren<Button>(true);
             for (int i = 0; i < buttons.Length; i++)
                 if (buttons[i].GetComponent<UIButtonSound>() == null)
@@ -44,17 +40,5 @@ namespace ColonyFlow
                 gameObject.SetActive(false);
         }
 
-        private void ApplySafeArea()
-        {
-            if (safeAreaRoot == null || Screen.width <= 0 || Screen.height <= 0)
-                return;
-            Rect safeArea = Screen.safeArea;
-            safeAreaRoot.anchorMin = new Vector2(
-                safeArea.xMin / Screen.width, safeArea.yMin / Screen.height);
-            safeAreaRoot.anchorMax = new Vector2(
-                safeArea.xMax / Screen.width, safeArea.yMax / Screen.height);
-            safeAreaRoot.offsetMin = Vector2.zero;
-            safeAreaRoot.offsetMax = Vector2.zero;
-        }
     }
 }

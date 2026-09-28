@@ -15,6 +15,8 @@ namespace ColonyFlow
         [SerializeField] private Color green = new Color(0.22f, 0.72f, 0.35f);
         [SerializeField] private Color yellow = new Color(1f, 0.78f, 0.20f);
         [SerializeField] private Color black = new Color(0.18f, 0.18f, 0.22f);
+        [SerializeField] private Color pink = new Color(1f, 0.28f, 0.66f);
+        [SerializeField] private Color brown = new Color(0.58f, 0.30f, 0.18f);
 
         private static PixelColorUtility defaultPalette;
 
@@ -36,6 +38,8 @@ namespace ColonyFlow
                 case PixelColor.Green: return green;
                 case PixelColor.Yellow: return yellow;
                 case PixelColor.Black: return black;
+                case PixelColor.Pink: return pink;
+                case PixelColor.Brown: return brown;
                 default: return Color.magenta;
             }
         }

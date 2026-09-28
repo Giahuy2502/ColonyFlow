@@ -15,8 +15,12 @@ namespace ColonyFlow
         [SerializeField] private PixelBoard board;
         [SerializeField] private Pixel pixelPrefab;
         [SerializeField] private Transform pixelRoot;
+        [SerializeField] private PixelColorUtility colorPalette;
         [SerializeField] private Material pixelMaterial;
         [SerializeField] private Vector3 pixelScale = new Vector3(0.84f, 1.18f, 0.84f);
+        [Header("Fixed Board Frame")]
+        [SerializeField] private Vector2Int frameGridSize = new Vector2Int(25, 25);
+        [SerializeField, Min(0.01f)] private float frameCellSize = 0.176f;
         [SerializeField, Range(0.1f, 0.6f)] private float borderWidth = 0.28f;
         [SerializeField, Range(2, 12)] private int borderCornerSegments = 8;
         [SerializeField] private Color boardSurfaceColor = new Color(0.98f, 0.98f, 0.96f, 1f);
@@ -40,6 +44,10 @@ namespace ColonyFlow
         private Mesh boardFrameMesh;
         private Mesh boardSurfaceMesh;
         private Mesh outerBorderMesh;
+
+        public Vector3 CurrentPixelWorldScale => board != null
+            ? Vector3.Scale(pixelScale * board.CellSize, board.transform.lossyScale)
+            : Vector3.zero;
 
         private void Awake()
         {
@@ -92,6 +100,9 @@ namespace ColonyFlow
 
         private void CreateRuntimeResources()
         {
+            if (colorPalette != null)
+                PixelColorUtility.SetDefault(colorPalette);
+
             int colorCount = Enum.GetValues(typeof(PixelColor)).Length;
             colorBlocks = new MaterialPropertyBlock[colorCount];
             boardSurfaceBlock = new MaterialPropertyBlock();
@@ -112,13 +123,17 @@ namespace ColonyFlow
             AssignBoardMaterial(boardSurfaceRenderer);
             AssignBoardMaterial(boardFrameRenderer);
             AssignBoardMaterial(outerBorderRenderer);
+            BuildBoardMeshes(frameGridSize, frameCellSize);
         }
 
         [ContextMenu("Refresh Board Visual Preview")]
-        private void RefreshEditorPreview()
+        public void RefreshEditorPreview()
         {
             if (Application.isPlaying || board == null)
                 return;
+
+            if (colorPalette != null)
+                PixelColorUtility.SetDefault(colorPalette);
 
             if (boardSurfaceBlock == null)
                 boardSurfaceBlock = new MaterialPropertyBlock();
@@ -142,7 +157,7 @@ namespace ColonyFlow
             AssignPreviewMaterial(boardSurfaceRenderer);
             AssignPreviewMaterial(boardFrameRenderer);
             AssignPreviewMaterial(outerBorderRenderer);
-            BuildBoardMeshes(board.Size);
+            BuildBoardMeshes(frameGridSize, frameCellSize);
         }
 
         private void AssignPreviewMaterial(MeshRenderer targetRenderer)
@@ -180,7 +195,6 @@ namespace ColonyFlow
                 return;
 
             Vector2Int boardSize = board.Size;
-            BuildBoardMeshes(boardSize);
             for (int y = 0; y < boardSize.y; y++)
             {
                 for (int x = 0; x < boardSize.x; x++)
@@ -211,9 +225,6 @@ namespace ColonyFlow
                 pixelPool.Enqueue(pixel);
             }
             pixelsByIndex.Clear();
-            boardFrameMesh?.Clear();
-            boardSurfaceMesh?.Clear();
-            outerBorderMesh?.Clear();
         }
 
         private void OnPixelCollected(Vector2Int position, PixelColor color)
@@ -235,9 +246,8 @@ namespace ColonyFlow
             targetRenderer.receiveShadows = receiveShadows;
         }
 
-        private void BuildBoardMeshes(Vector2Int boardSize)
+        private void BuildBoardMeshes(Vector2Int boardSize, float cell)
         {
-            float cell = board.CellSize;
             float innerMinX = -0.56f * cell;
             float innerMinZ = -0.56f * cell;
             float innerMaxX = (boardSize.x - 1) * cell + 0.56f * cell;

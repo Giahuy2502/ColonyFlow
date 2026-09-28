@@ -397,6 +397,10 @@ namespace ColonyFlow
             if (board.IsCompleted)
             {
                 CancelDeadlockCheck();
+                if (activeTasks.Count > 0 ||
+                    (antManager != null && antManager.ActiveCount > 0))
+                    return;
+
                 FinishLevel(LevelResult.Victory);
                 return;
             }
@@ -451,7 +455,7 @@ namespace ColonyFlow
         private void OnBoardCompleted()
         {
             if (CanProcessGameplay)
-                FinishLevel(LevelResult.Victory);
+                EvaluateProgress();
         }
 
         private void OnBoardBuilt()

@@ -7,7 +7,8 @@ namespace ColonyFlow
     public sealed class CanvasGamePlay : UICanvas
     {
         [SerializeField] private TextMeshProUGUI aliveText;
-        [SerializeField] private TextMeshProUGUI speedText;
+        [SerializeField] private Image speedImage;
+        [SerializeField] private Sprite[] speedSprites = new Sprite[2];
         [SerializeField] private LoseNotification loseNotification;
         [Header("Boosters")]
         [SerializeField] private Button addTrayButton;
@@ -37,7 +38,7 @@ namespace ColonyFlow
                 loseNotification.gameObject.SetActive(false);
             }
             doubleSpeed = GameManager.Instance != null && GameManager.Instance.IsDoubleSpeed;
-            RefreshSpeedText();
+            RefreshSpeedIcon();
             ResolveBoosterReferences();
             WireBoosterButtons();
             if (boosterManager != null)
@@ -63,7 +64,7 @@ namespace ColonyFlow
         {
             GameManager.Instance?.ToggleGameSpeed();
             doubleSpeed = GameManager.Instance != null && GameManager.Instance.IsDoubleSpeed;
-            RefreshSpeedText();
+            RefreshSpeedIcon();
         }
 
         public void AddTrayBoosterButton()
@@ -90,10 +91,14 @@ namespace ColonyFlow
             RefreshBoosters();
         }
 
-        private void RefreshSpeedText()
+        private void RefreshSpeedIcon()
         {
-            if (speedText != null)
-                speedText.text = doubleSpeed ? "2x" : "1x";
+            if (speedImage == null || speedSprites == null || speedSprites.Length < 2)
+                return;
+
+            Sprite speedSprite = speedSprites[doubleSpeed ? 1 : 0];
+            if (speedSprite != null)
+                speedImage.sprite = speedSprite;
         }
 
         private void ResolveBoosterReferences()
@@ -147,9 +152,9 @@ namespace ColonyFlow
             {
                 boosterPromptText.gameObject.SetActive(mode != BoosterTargetMode.None);
                 boosterPromptText.text = mode == BoosterTargetMode.PickHiddenColony
-                    ? "Chọn một Colony phía dưới"
+                    ? "Select a colony below"
                     : mode == BoosterTargetMode.RemoveColor
-                        ? "Chọn một Pixel trên Board"
+                        ? "Select a pixel on the board"
                         : string.Empty;
             }
         }

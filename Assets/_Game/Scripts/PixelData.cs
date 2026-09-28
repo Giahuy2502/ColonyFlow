@@ -13,7 +13,9 @@ namespace ColonyFlow
         Red,
         Green,
         Yellow,
-        Black
+        Black,
+        Pink,
+        Brown
     }
 
     public enum PixelCellState : byte

@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 namespace ColonyFlow
@@ -19,8 +20,12 @@ namespace ColonyFlow
     {
         [SerializeField] private DataManager dataManager;
         [SerializeField] private LevelManager levelManager;
+        [Header("Level Testing")]
+        [SerializeField] private bool useInspectorLevel;
+        [SerializeField, Min(1)] private int inspectorLevelNumber = 1;
 
         private bool doubleSpeed;
+        private Coroutine loadRoutine;
 
         public GameState State { get; private set; } = GameState.Loading;
         public int DisplayLevelNumber
@@ -31,7 +36,7 @@ namespace ColonyFlow
                                        State != GameState.MainMenu;
                 int index = showActiveLevel
                     ? levelManager.ActiveLevelIndex
-                    : dataManager?.PlayerData?.currentLevelIndex ?? 0;
+                    : GetSelectedLevelIndex();
                 return index + 1;
             }
         }
@@ -73,8 +78,16 @@ namespace ColonyFlow
 
         public void PlayGame()
         {
-            int index = dataManager.PlayerData?.currentLevelIndex ?? 0;
-            LoadLevel(index);
+            RequestLoadLevel(GetSelectedLevelIndex());
+        }
+
+        private int GetSelectedLevelIndex()
+        {
+            int savedLevelIndex = dataManager?.PlayerData?.currentLevelIndex ?? 0;
+            if (!useInspectorLevel || dataManager == null || dataManager.LevelCount == 0)
+                return savedLevelIndex;
+
+            return Mathf.Clamp(inspectorLevelNumber - 1, 0, dataManager.LevelCount - 1);
         }
 
         public void PauseGame()
@@ -120,7 +133,7 @@ namespace ColonyFlow
             int index = levelManager.HasActiveLevel
                 ? levelManager.ActiveLevelIndex
                 : dataManager.PlayerData.currentLevelIndex;
-            LoadLevel(index);
+            RequestLoadLevel(index);
         }
 
         public void ReplayLevel()
@@ -132,7 +145,7 @@ namespace ColonyFlow
         {
             if (State != GameState.Victory)
                 return;
-            LoadLevel(dataManager.PlayerData.currentLevelIndex);
+            RequestLoadLevel(dataManager.PlayerData.currentLevelIndex);
         }
 
         public void ToggleGameSpeed()
@@ -143,8 +156,11 @@ namespace ColonyFlow
             ApplyGameSpeed();
         }
 
-        private void LoadLevel(int levelIndex)
+        private void RequestLoadLevel(int levelIndex)
         {
+            if (loadRoutine != null)
+                return;
+
             ColonyLevelData data = dataManager.GetLevel(levelIndex);
             if (data == null)
             {
@@ -153,20 +169,43 @@ namespace ColonyFlow
                 return;
             }
 
+            loadRoutine = StartCoroutine(LoadLevelRoutine(data, levelIndex));
+        }
+
+        private IEnumerator LoadLevelRoutine(ColonyLevelData data, int levelIndex)
+        {
             SetState(GameState.Loading);
             Time.timeScale = 1f;
             UIManager.Instance?.CloseAll();
+            CanvasLoading loading = UIManager.Instance?.Open<CanvasLoading>();
+
+            if (loading != null)
+            {
+                float elapsed = 0f;
+                while (elapsed < loading.Duration)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    loading.SetProgress(elapsed / loading.Duration);
+                    yield return null;
+                }
+                loading.SetProgress(1f);
+                yield return null;
+            }
+
             if (!levelManager.StartLevel(data, levelIndex))
             {
+                loadRoutine = null;
                 EnterMainMenu();
-                return;
+                yield break;
             }
 
             doubleSpeed = false;
             SetState(GameState.Playing);
             SoundManager.Instance?.PlayMusic(MusicId.Gameplay);
+            UIManager.Instance?.Close<CanvasLoading>();
             UIManager.Instance?.Open<CanvasGamePlay>();
             ApplyGameSpeed();
+            loadRoutine = null;
         }
 
         private void OnLevelCompleted(LevelResult result)

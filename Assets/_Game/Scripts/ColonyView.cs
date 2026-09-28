@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 namespace ColonyFlow
@@ -8,8 +9,7 @@ namespace ColonyFlow
     {
         [SerializeField] private Renderer bodyRenderer;
         [SerializeField] private Renderer topRenderer;
-        [SerializeField] private TextMesh countText;
-        [SerializeField] private Renderer countRenderer;
+        [SerializeField] private TextMeshPro countText;
         [SerializeField] private Collider clickCollider;
         [SerializeField] private Animator animator;
         [SerializeField, Min(0.1f)] private float moveSpeed = 8f;
@@ -30,8 +30,8 @@ namespace ColonyFlow
         private bool isDisappearing;
         private float disappearTime;
         private string animName;
+        private int displayedCount = -1;
         private static readonly Dictionary<Collider, ColonyView> ClickTargets = new Dictionary<Collider, ColonyView>();
-        private static Font runtimeFont;
 
         private const string IdleAnim = "Idle";
         private const string MoveAnim = "Move";
@@ -42,16 +42,6 @@ namespace ColonyFlow
         private void Awake()
         {
             propertyBlock = new MaterialPropertyBlock();
-            if (countText != null && countRenderer != null)
-            {
-                if (runtimeFont == null)
-                    runtimeFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                if (runtimeFont != null)
-                {
-                    countText.font = runtimeFont;
-                    countRenderer.sharedMaterial = runtimeFont.material;
-                }
-            }
         }
 
         private void OnEnable()
@@ -68,6 +58,12 @@ namespace ColonyFlow
 
         public void Initialize(Colony model, LevelManager gameplayLevelManager, int ownerColumn)
         {
+            if (colony != null)
+            {
+                colony.CountChanged -= RefreshCount;
+                colony.StateChanged -= OnStateChanged;
+            }
+
             colony = model;
             levelManager = gameplayLevelManager;
             columnIndex = ownerColumn;
@@ -78,6 +74,7 @@ namespace ColonyFlow
             isDisappearing = false;
             disappearTime = 0f;
             animName = null;
+            displayedCount = -1;
             if (animator != null)
             {
                 animator.Rebind();
@@ -88,7 +85,7 @@ namespace ColonyFlow
             if (bodyRenderer == null)
                 throw new MissingReferenceException($"{name}: ColonyView requires a serialized Renderer reference.");
             ApplyColor();
-            RefreshCount(model);
+            SyncCount();
             colony.CountChanged += RefreshCount;
             colony.StateChanged += OnStateChanged;
         }
@@ -184,6 +181,8 @@ namespace ColonyFlow
 
         private void Update()
         {
+            SyncCount();
+
             if (isDisappearing)
             {
                 disappearTime += Time.deltaTime;
@@ -226,8 +225,21 @@ namespace ColonyFlow
 
         private void RefreshCount(Colony changed)
         {
-            if (countText != null)
-                countText.text = changed.DisplayCount.ToString();
+            if (changed == colony)
+                SyncCount();
+        }
+
+        private void SyncCount()
+        {
+            if (colony == null || countText == null)
+                return;
+
+            int currentCount = colony.DisplayCount;
+            if (currentCount == displayedCount)
+                return;
+
+            displayedCount = currentCount;
+            countText.SetText("{0}", currentCount);
         }
 
         private void OnStateChanged(Colony changed, ColonyState state)
@@ -291,13 +303,7 @@ namespace ColonyFlow
             }
 
             if (countText != null)
-            {
-                bool useDarkText = colony.Color == PixelColor.White ||
-                    colony.Color == PixelColor.Yellow || colony.Color == PixelColor.Cyan;
-                countText.color = useDarkText
-                    ? new Color(0.16f, 0.12f, 0.10f, 1f)
-                    : Color.white;
-            }
+                countText.color = Color.white;
         }
     }
 }

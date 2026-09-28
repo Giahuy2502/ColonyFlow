@@ -39,19 +39,23 @@ namespace ColonyFlow
         [SerializeField] private Camera gameplayCamera;
         [SerializeField] private Colony colonyPrefab;
         [SerializeField] private ColonyColumn columnPrefab;
-        [SerializeField] private ColonyTray trayPrefab;
+        [SerializeField] private ColonyTray tray;
         [SerializeField] private AntManager antManager;
-        [SerializeField] private Transform traySlotPrefab;
         [SerializeField] private Transform antHole;
 
         [Header("Hierarchy roots")]
         [SerializeField] private Transform antsRoot;
         [SerializeField] private Transform coloniesRoot;
-        [SerializeField] private Transform colonyTraysRoot;
 
         [Header("Gameplay")]
         [SerializeField] private bool simulateWithoutAnt;
         [SerializeField, Min(0.01f)] private float simulatedTaskInterval = 0.08f;
+
+        [Header("Column layout")]
+        [SerializeField, Min(0f)] private float columnSpacing = 0.9f;
+        [SerializeField] private float columnHeight = 0.35f;
+        [SerializeField] private float columnStartDepth = -3.85f;
+        [SerializeField, Min(0f)] private float columnDepthSpacing = 0.92f;
 
         private readonly List<ColonyColumn> columns = new List<ColonyColumn>();
         private readonly List<List<ColonyView>> columnViews = new List<List<ColonyView>>();
@@ -59,12 +63,12 @@ namespace ColonyFlow
             new Dictionary<Colony, ColonyView>();
         private readonly List<Vector3> trayPositions = new List<Vector3>();
         private readonly List<Transform> traySlots = new List<Transform>();
+        private readonly List<Vector3> traySlotScales = new List<Vector3>();
         private readonly List<PixelData> generatedPixels = new List<PixelData>();
         private readonly List<ColonyColumnSpec> columnData = new List<ColonyColumnSpec>();
         private readonly List<Colony> colonyScratch = new List<Colony>();
         private readonly List<Colony> shuffledColonies = new List<Colony>();
         private readonly List<int> remainingCounts = new List<int>();
-        private ColonyTray tray;
         private int trayCapacity;
         private bool columnLayoutRefreshPending;
         private float pendingColumnAnimationDuration = -1f;
@@ -107,10 +111,9 @@ namespace ColonyFlow
             }
 
             board.Configure(levelData.BoardSize, levelData.CellSize, generatedPixels);
-            tray = Instantiate(trayPrefab, colonyTraysRoot);
-            tray.name = "Colony Tray";
             tray.Configure(trayCapacity);
-            CreateTraySlots();
+            if (!PrepareTraySlots())
+                return false;
             CreateColumns();
             InitializeViews();
             tray.ColonyAdded += OnColonyAdded;
@@ -125,6 +128,7 @@ namespace ColonyFlow
 
         public void UnloadLevel()
         {
+            StopAllCoroutines();
             if (tray != null)
             {
                 tray.ColonyAdded -= OnColonyAdded;
@@ -135,7 +139,13 @@ namespace ColonyFlow
                 DeactivateAndDestroy(view != null ? view.gameObject : null);
             for (int i = 0; i < columns.Count; i++)
                 DeactivateAndDestroy(columns[i] != null ? columns[i].gameObject : null);
-            DeactivateAndDestroy(tray != null ? tray.gameObject : null);
+            for (int i = 0; i < traySlots.Count && i < traySlotScales.Count; i++)
+                if (traySlots[i] != null)
+                {
+                    traySlots[i].localScale = traySlotScales[i];
+                    if (Application.isPlaying)
+                        traySlots[i].gameObject.SetActive(false);
+                }
 
             board?.ClearBoard();
             columns.Clear();
@@ -143,12 +153,12 @@ namespace ColonyFlow
             views.Clear();
             trayPositions.Clear();
             traySlots.Clear();
+            traySlotScales.Clear();
             generatedPixels.Clear();
             columnData.Clear();
             colonyScratch.Clear();
             shuffledColonies.Clear();
             remainingCounts.Clear();
-            tray = null;
             columnLayoutRefreshPending = false;
             pendingColumnAnimationDuration = -1f;
         }
@@ -156,41 +166,68 @@ namespace ColonyFlow
         private bool ValidateReferences()
         {
             if (board != null && levelManager != null && gameplayCamera != null &&
-                colonyPrefab != null && columnPrefab != null && trayPrefab != null &&
-                antManager != null && traySlotPrefab != null && antHole != null &&
-                antsRoot != null && coloniesRoot != null && colonyTraysRoot != null)
+                colonyPrefab != null && columnPrefab != null && tray != null &&
+                antManager != null && antHole != null &&
+                antsRoot != null && coloniesRoot != null)
                 return true;
 
             Debug.LogError("ColonyLevelBuilder has missing serialized references.", this);
             return false;
         }
 
-        private void CreateTraySlots()
+        private bool PrepareTraySlots()
         {
-            for (int i = 0; i < trayCapacity; i++)
+            traySlots.Clear();
+            traySlotScales.Clear();
+            for (int i = 0; i < tray.SlotObjectCount; i++)
             {
-                Transform slot = Instantiate(traySlotPrefab, tray.transform);
-                slot.name = $"Tray Slot {i + 1}";
-                slot.localRotation = Quaternion.identity;
+                Transform slot = tray.GetSlotObject(i);
+                if (slot == null)
+                {
+                    Debug.LogError($"{tray.name} has an empty slot reference at index {i}.", tray);
+                    return false;
+                }
                 traySlots.Add(slot);
+                slot.localScale = tray.SlotScale;
+                traySlotScales.Add(tray.SlotScale);
             }
+
+            if (traySlots.Count < trayCapacity)
+            {
+                Debug.LogError(
+                    $"{tray.name} needs at least {trayCapacity} assigned slots, but only " +
+                    $"{traySlots.Count} are assigned in its Slot Objects list.", tray);
+                return false;
+            }
+
+            for (int i = 0; i < traySlots.Count; i++)
+                traySlots[i].gameObject.SetActive(i < trayCapacity);
             RefreshTrayLayout(false);
+            return true;
         }
 
         public bool TryExpandTray()
         {
-            if (tray == null || !tray.ExpandCapacity(1))
+            if (tray == null || trayCapacity + tray.ExpansionAmount > traySlots.Count ||
+                !tray.ExpandCapacity(tray.ExpansionAmount))
                 return false;
 
             trayCapacity = tray.Capacity;
-            Transform slot = Instantiate(traySlotPrefab, tray.transform);
-            slot.name = $"Tray Slot {trayCapacity}";
-            slot.localRotation = Quaternion.identity;
-            Vector3 targetScale = slot.localScale;
-            slot.localScale = Vector3.zero;
-            traySlots.Add(slot);
+            int firstNewSlotIndex = trayCapacity - tray.ExpansionAmount;
+            var newSlots = new List<(Transform slot, Vector3 targetScale)>(
+                tray.ExpansionAmount);
+            for (int i = firstNewSlotIndex; i < trayCapacity; i++)
+            {
+                Transform slot = traySlots[i];
+                Vector3 targetScale = traySlotScales[i];
+                slot.localScale = Vector3.zero;
+                slot.gameObject.SetActive(true);
+                newSlots.Add((slot, targetScale));
+            }
+
             RefreshTrayLayout(true);
-            StartCoroutine(PopTraySlot(slot, targetScale));
+            for (int i = 0; i < newSlots.Count; i++)
+                StartCoroutine(PopTraySlot(newSlots[i].slot, newSlots[i].targetScale));
             return true;
         }
 
@@ -279,13 +316,13 @@ namespace ColonyFlow
         private void RefreshTrayLayout(bool animateColonies)
         {
             trayPositions.Clear();
-            float center = (board.Size.x - 1) * board.CellSize * 0.5f;
-            const float spacing = 0.9f;
-            float startX = center - (trayCapacity - 1) * spacing * 0.5f;
+            float spacing = tray.SlotSpacing;
+            float startX = tray.SlotCenterX - (trayCapacity - 1) * spacing * 0.5f;
             for (int i = 0; i < trayCapacity; i++)
             {
-                Vector3 slotPosition = new Vector3(startX + i * spacing, 0f, -2.65f);
-                trayPositions.Add(slotPosition + Vector3.up * 0.35f);
+                Vector3 slotPosition =
+                    new Vector3(startX + i * spacing, tray.SlotHeight, tray.Depth);
+                trayPositions.Add(slotPosition + Vector3.up * tray.ColonyHeight);
                 if (i < traySlots.Count && traySlots[i] != null)
                     traySlots[i].localPosition = slotPosition;
 
@@ -296,16 +333,16 @@ namespace ColonyFlow
             }
         }
 
-        private static IEnumerator PopTraySlot(Transform slot, Vector3 targetScale)
+        private IEnumerator PopTraySlot(Transform slot, Vector3 targetScale)
         {
-            const float duration = 0.22f;
             float elapsed = 0f;
-            while (slot != null && elapsed < duration)
+            while (slot != null && elapsed < tray.SlotPopDuration)
             {
                 elapsed += Time.deltaTime;
-                float progress = Mathf.Clamp01(elapsed / duration);
-                float eased = 1f - Mathf.Pow(1f - progress, 3f);
-                float overshoot = 1f + Mathf.Sin(progress * Mathf.PI) * 0.12f;
+                float progress = Mathf.Clamp01(elapsed / tray.SlotPopDuration);
+                float eased = 1f - Mathf.Pow(1f - progress, tray.SlotPopEasePower);
+                float overshoot = 1f +
+                                  Mathf.Sin(progress * Mathf.PI) * tray.SlotPopOvershoot;
                 slot.localScale = targetScale * eased * overshoot;
                 yield return null;
             }
@@ -316,8 +353,7 @@ namespace ColonyFlow
         private void CreateColumns()
         {
             float center = (board.Size.x - 1) * board.CellSize * 0.5f;
-            const float spacing = 0.9f;
-            float startX = center - (columnData.Count - 1) * spacing * 0.5f;
+            float startX = center - (columnData.Count - 1) * columnSpacing * 0.5f;
 
             for (int columnIndex = 0; columnIndex < columnData.Count; columnIndex++)
             {
@@ -334,7 +370,7 @@ namespace ColonyFlow
                     colony.name = $"Colony {columnIndex + 1}-{depth + 1} " +
                                   $"{colonySpec.color} {colonySpec.count}";
                     colony.transform.localPosition =
-                        ColumnPosition(startX, spacing, columnIndex, depth);
+                        ColumnPosition(startX, columnIndex, depth);
                     colony.transform.localRotation = Quaternion.identity;
                     colony.Configure(colonySpec.color, colonySpec.count);
 
@@ -363,7 +399,7 @@ namespace ColonyFlow
         {
             if (views.TryGetValue(colony, out ColonyView view) && slotIndex < trayPositions.Count)
             {
-                view.transform.SetParent(colonyTraysRoot, true);
+                view.transform.SetParent(tray.transform, true);
                 view.MoveToTray(trayPositions[slotIndex]);
             }
             // ColonyAdded fires before ColonyColumn.TryTakeFront updates the
@@ -380,7 +416,6 @@ namespace ColonyFlow
         private void RefreshColumnPositions(float animationDuration)
         {
             float center = (board.Size.x - 1) * board.CellSize * 0.5f;
-            const float spacing = 0.9f;
             int activeColumnCount = 0;
             for (int i = 0; i < columns.Count; i++)
                 if (columns[i] != null && columns[i].HasColony)
@@ -389,7 +424,7 @@ namespace ColonyFlow
             if (activeColumnCount == 0)
                 return;
 
-            float startX = center - (activeColumnCount - 1) * spacing * 0.5f;
+            float startX = center - (activeColumnCount - 1) * columnSpacing * 0.5f;
             int compactColumnIndex = 0;
             for (int columnIndex = 0; columnIndex < columnViews.Count; columnIndex++)
             {
@@ -401,7 +436,7 @@ namespace ColonyFlow
                     if (view.Colony.State == ColonyState.InColumn)
                     {
                         Vector3 target = ColumnPosition(
-                            startX, spacing, compactColumnIndex, depth++);
+                            startX, compactColumnIndex, depth++);
                         if (animationDuration > 0f)
                             view.MoveToColumnPositionOverDuration(target, animationDuration);
                         else
@@ -411,10 +446,10 @@ namespace ColonyFlow
             }
         }
 
-        private static Vector3 ColumnPosition(float startX, float spacing,
-            int column, int depth)
+        private Vector3 ColumnPosition(float startX, int column, int depth)
         {
-            return new Vector3(startX + column * spacing, 0.35f, -3.85f - depth * 0.92f);
+            return new Vector3(startX + column * columnSpacing, columnHeight,
+                columnStartDepth - depth * columnDepthSpacing);
         }
 
         private static void DeactivateAndDestroy(GameObject target)

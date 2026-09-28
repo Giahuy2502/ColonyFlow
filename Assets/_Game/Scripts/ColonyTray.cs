@@ -7,10 +7,37 @@ namespace ColonyFlow
     [DisallowMultipleComponent]
     public sealed class ColonyTray : MonoBehaviour
     {
+        [Header("Capacity")]
         [SerializeField, Min(1)] private int capacity = 5;
+
+        [Header("Layout")]
+        [SerializeField] private List<Transform> slotObjects = new List<Transform>();
+        [SerializeField, Min(0f)] private float slotSpacing = 0.9f;
+        [SerializeField] private float slotCenterX = 2.09f;
+        [SerializeField] private Vector3 slotScale = new Vector3(0.8f, 0.12f, 0.8f);
+        [SerializeField] private float slotHeight;
+        [SerializeField] private float depth = -2.65f;
+        [SerializeField] private float colonyHeight = 0.35f;
+
+        [Header("Expansion")]
+        [SerializeField, Min(1)] private int expansionAmount = 1;
+        [SerializeField, Min(0.01f)] private float slotPopDuration = 0.22f;
+        [SerializeField, Min(1f)] private float slotPopEasePower = 3f;
+        [SerializeField, Min(0f)] private float slotPopOvershoot = 0.12f;
         private Colony[] slots;
 
         public int Capacity => capacity;
+        public int SlotObjectCount => slotObjects.Count;
+        public float SlotSpacing => slotSpacing;
+        public float SlotCenterX => slotCenterX;
+        public Vector3 SlotScale => slotScale;
+        public float SlotHeight => slotHeight;
+        public float Depth => depth;
+        public float ColonyHeight => colonyHeight;
+        public int ExpansionAmount => expansionAmount;
+        public float SlotPopDuration => slotPopDuration;
+        public float SlotPopEasePower => slotPopEasePower;
+        public float SlotPopOvershoot => slotPopOvershoot;
         public int OccupiedCount { get; private set; }
         public bool HasFreeSlot => OccupiedCount < capacity;
         public bool IsFull => OccupiedCount >= capacity;
@@ -18,9 +45,46 @@ namespace ColonyFlow
         public event Action<int, Colony> ColonyAdded;
         public event Action<int, Colony> ColonyRemoved;
 
+        public Transform GetSlotObject(int index)
+        {
+            return index >= 0 && index < slotObjects.Count ? slotObjects[index] : null;
+        }
+
         private void Awake()
         {
             Initialize();
+        }
+
+        private void OnValidate()
+        {
+            capacity = Mathf.Max(1, capacity);
+            slotSpacing = Mathf.Max(0f, slotSpacing);
+            expansionAmount = Mathf.Max(1, expansionAmount);
+            slotPopDuration = Mathf.Max(0.01f, slotPopDuration);
+            slotPopEasePower = Mathf.Max(1f, slotPopEasePower);
+            slotPopOvershoot = Mathf.Max(0f, slotPopOvershoot);
+
+            if (!Application.isPlaying)
+                RefreshEditorSlotLayout();
+        }
+
+        private void RefreshEditorSlotLayout()
+        {
+            int slotCount = slotObjects.Count;
+            int visibleSlotCount = Mathf.Min(capacity, slotCount);
+            float startX = slotCenterX - (visibleSlotCount - 1) * slotSpacing * 0.5f;
+            for (int i = 0; i < slotCount; i++)
+            {
+                Transform slot = slotObjects[i];
+                if (slot == null)
+                    continue;
+                Vector3 position = slot.localPosition;
+                position.x = startX + i * slotSpacing;
+                position.y = slotHeight;
+                position.z = depth;
+                slot.localPosition = position;
+                slot.localScale = slotScale;
+            }
         }
 
         public void Initialize()

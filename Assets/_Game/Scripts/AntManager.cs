@@ -28,6 +28,7 @@ namespace ColonyFlow
         private readonly List<Vector3> rawRouteScratch = new List<Vector3>(128);
         private readonly List<Vector3> pathScratch = new List<Vector3>(128);
         private PixelBoard board;
+        private PixelBoardRenderer boardRenderer;
         private LevelManager levelManager;
         private Transform holeTarget;
         private Transform antRoot;
@@ -39,6 +40,7 @@ namespace ColonyFlow
             Transform antHoleTarget, Transform spawnedAntRoot)
         {
             board = pixelBoard;
+            boardRenderer = board != null ? board.GetComponent<PixelBoardRenderer>() : null;
             levelManager = gameplayLevelManager;
             holeTarget = antHoleTarget;
             antRoot = spawnedAntRoot;
@@ -96,7 +98,11 @@ namespace ColonyFlow
                 BuildOutboundRoute(spawnPosition, borderStart);
                 AppendTargetContactEndpoint(ant, spawnPosition, target);
                 BuildSmoothedRoute(spawnPosition, Vector3.forward, false, task.Id);
-                ant.OnInit(this, task, spawnPosition, smoothedRoute, target);
+                Vector3 carriedPixelWorldScale = boardRenderer != null
+                    ? boardRenderer.CurrentPixelWorldScale
+                    : Vector3.one * board.CellSize;
+                ant.OnInit(this, task, spawnPosition, smoothedRoute, target,
+                    carriedPixelWorldScale);
                 return;
             }
         }

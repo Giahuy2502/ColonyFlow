@@ -21,3 +21,5 @@ MonoBehaviour:
   green: {r: 0.22, g: 0.72, b: 0.35, a: 1}
   yellow: {r: 1, g: 0.78, b: 0.2, a: 1}
   black: {r: 0.18, g: 0.18, b: 0.22, a: 1}
+  pink: {r: 1, g: 0.28, b: 0.66, a: 1}
+  brown: {r: 0.58, g: 0.3, b: 0.18, a: 1}

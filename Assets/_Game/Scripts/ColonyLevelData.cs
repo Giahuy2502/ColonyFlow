@@ -10,7 +10,8 @@ namespace ColonyFlow
         FilledBoard,
         RainbowRings,
         CandySpiral,
-        Mosaic
+        Mosaic,
+        Custom
     }
 
     [CreateAssetMenu(fileName = "Level_", menuName = "Colony Flow/Level Data")]
@@ -24,6 +25,9 @@ namespace ColonyFlow
         [SerializeField, Min(1)] private int trayCapacity = 5;
         [SerializeField, Range(1, 10)] private int columnCount = 5;
         [SerializeField, Min(1)] private int maxColonyQuota = 20;
+        [Header("Custom Pixel Map")]
+        [SerializeField] private List<PixelColor> customColorLegend = new List<PixelColor>();
+        [SerializeField] private List<string> customRows = new List<string>();
 
         public Vector2Int BoardSize => new Vector2Int(width, height);
         public float CellSize => boardWorldSize / Mathf.Max(width, height);
@@ -34,6 +38,12 @@ namespace ColonyFlow
             if (destination == null)
                 throw new ArgumentNullException(nameof(destination));
             destination.Clear();
+
+            if (pattern == GeneratedPixelPattern.Custom)
+            {
+                BuildCustomPixels(destination);
+                return;
+            }
 
             for (int y = 0; y < height; y++)
             {
@@ -226,8 +236,57 @@ namespace ColonyFlow
             else if (Hash(x, y) % 29 == 0)
                 color = PixelColor.Purple;
             else
-                color = PixelColor.Red;
+            color = PixelColor.Red;
             return true;
+        }
+
+        private void BuildCustomPixels(List<PixelData> destination)
+        {
+            if (customRows == null || customRows.Count != height)
+            {
+                Debug.LogError($"{name}: custom map requires exactly {height} rows.", this);
+                return;
+            }
+
+            if (customColorLegend == null || customColorLegend.Count == 0)
+            {
+                Debug.LogError($"{name}: custom map requires a color legend.", this);
+                return;
+            }
+
+            for (int rowIndex = 0; rowIndex < customRows.Count; rowIndex++)
+            {
+                string row = customRows[rowIndex];
+                if (string.IsNullOrEmpty(row) || row.Length != width)
+                {
+                    Debug.LogError(
+                        $"{name}: custom row {rowIndex + 1} must contain exactly {width} cells.",
+                        this);
+                    destination.Clear();
+                    return;
+                }
+
+                for (int x = 0; x < width; x++)
+                {
+                    char symbol = row[x];
+                    if (symbol == '.')
+                        continue;
+
+                    int legendIndex = symbol - '0';
+                    if (legendIndex < 0 || legendIndex >= customColorLegend.Count)
+                    {
+                        Debug.LogError(
+                            $"{name}: custom row {rowIndex + 1} contains invalid symbol '{symbol}'.",
+                            this);
+                        destination.Clear();
+                        return;
+                    }
+
+                    int y = height - rowIndex - 1;
+                    destination.Add(new PixelData(
+                        new Vector2Int(x, y), customColorLegend[legendIndex]));
+                }
+            }
         }
 
         private static int PositiveModulo(int value, int divisor)

@@ -80,6 +80,7 @@ MonoBehaviour:
   - {fileID: 7117944316692728433}
   carriedPixelVisual: {fileID: 2000}
   carriedPixelRenderer: {fileID: 2003}
+  carriedPixelSizeMultiplier: 0.7
   animator: {fileID: 6327883995191573865}
   eatDuration: 0.5
   jumpDuration: 0.42
@@ -135,7 +136,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0.32945412, y: -0.27381837, z: 0.0012455912, w: 0.90359384}
   m_LocalPosition: {x: 0.005100011, y: 0.10590001, z: 0.2825}
-  m_LocalScale: {x: 0.12, y: 0.12, z: 0.12}
+  m_LocalScale: {x: 0.18, y: 0.18, z: 0.18}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 1001}

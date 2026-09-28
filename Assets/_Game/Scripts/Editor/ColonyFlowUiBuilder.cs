@@ -61,7 +61,6 @@ namespace ColonyFlow.Editor
             CanvasGamePlay controller = root.AddComponent<CanvasGamePlay>();
             RectTransform safe = CreateRect(VersionName, root.transform);
             Stretch(safe);
-            SetSafeArea(controller, safe);
 
             RectTransform top = CreateRect("Top Bar", safe);
             SetRect(top, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
@@ -126,7 +125,7 @@ namespace ColonyFlow.Editor
         {
             GameObject root = CreateCanvas("Canvas-Victory");
             CanvasVictory controller = root.AddComponent<CanvasVictory>();
-            RectTransform safe = CreateModalBase(root, controller, "LEVEL COMPLETE!", out TextMeshProUGUI title);
+            RectTransform safe = CreateModalBase(root, "LEVEL COMPLETE!", out TextMeshProUGUI title);
             Button next = CreateButton("Next", safe, new Vector2(0f, -120f), new Vector2(560f, 120f),
                 "NEXT LEVEL", Color.white, Orange);
             Button replay = CreateButton("Replay", safe, new Vector2(0f, -275f), new Vector2(420f, 96f),
@@ -143,7 +142,7 @@ namespace ColonyFlow.Editor
         {
             GameObject root = CreateCanvas("Canvas-Lose");
             CanvasFail controller = root.AddComponent<CanvasFail>();
-            RectTransform safe = CreateModalBase(root, controller, "OUT OF MOVES", out _);
+            RectTransform safe = CreateModalBase(root, "OUT OF MOVES", out _);
             Button retry = CreateButton("Retry", safe, new Vector2(0f, -120f), new Vector2(560f, 120f),
                 "TRY AGAIN", Color.white, Orange);
             Button home = CreateButton("Home", safe, new Vector2(0f, -275f), new Vector2(420f, 96f),
@@ -157,7 +156,7 @@ namespace ColonyFlow.Editor
         {
             GameObject root = CreateCanvas("Canvas-Setting");
             CanvasSettings controller = root.AddComponent<CanvasSettings>();
-            RectTransform safe = CreateModalBase(root, controller, "PAUSED", out _);
+            RectTransform safe = CreateModalBase(root, "PAUSED", out _);
 
             RectTransform audioControls = CreateRect("Audio Controls", safe);
             SetRect(audioControls, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
@@ -193,12 +192,11 @@ namespace ColonyFlow.Editor
             Save(root, path);
         }
 
-        private static RectTransform CreateModalBase(GameObject root, UICanvas controller,
-            string heading, out TextMeshProUGUI title)
+        private static RectTransform CreateModalBase(GameObject root, string heading,
+            out TextMeshProUGUI title)
         {
             RectTransform safe = CreateRect(VersionName, root.transform);
             Stretch(safe);
-            SetSafeArea(controller, safe);
             RectTransform dim = CreatePanel("Dim", safe, Overlay);
             Stretch(dim);
             RectTransform card = CreateRoundedPanel("Card", safe,
@@ -310,13 +308,6 @@ namespace ColonyFlow.Editor
             RectTransform rect = child.GetComponent<RectTransform>();
             rect.SetParent(parent, false);
             return rect;
-        }
-
-        private static void SetSafeArea(UICanvas controller, RectTransform safe)
-        {
-            SerializedObject serialized = new SerializedObject(controller);
-            serialized.FindProperty("safeAreaRoot").objectReferenceValue = safe;
-            serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void Stretch(RectTransform rect)

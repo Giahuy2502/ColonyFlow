@@ -11,9 +11,12 @@ GameObject:
   - component: {fileID: 1001}
   - component: {fileID: 1002}
   m_Layer: 0
-  m_Name: Colony Tray
+  m_Name: ColonyTray
   m_TagString: Untagged
-  m_IsActive: 1
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
 --- !u!4 &1001
 Transform:
   m_ObjectHideFlags: 0
@@ -25,8 +28,10 @@ Transform:
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1002
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -40,3 +45,14 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   capacity: 5
+  slotObjects: []
+  slotSpacing: 0.9
+  slotCenterX: 2.09
+  slotScale: {x: 0.8, y: 0.12, z: 0.8}
+  slotHeight: 0
+  depth: -2.65
+  colonyHeight: 0.35
+  expansionAmount: 1
+  slotPopDuration: 0.22
+  slotPopEasePower: 3
+  slotPopOvershoot: 0.12

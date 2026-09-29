@@ -31,6 +31,9 @@ namespace ColonyFlow
         public Vector2Int Position { get; private set; }
         public PixelColor Color { get; private set; }
         public PixelState State { get; private set; }
+        internal Vector3 VisualLocalBoundsSize => visual != null
+            ? visual.localBounds.size
+            : Vector3.one;
 
         // Only the board changes logical state and updates its counters.
         internal void Initialize(PixelData data)

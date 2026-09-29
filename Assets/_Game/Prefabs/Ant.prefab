@@ -80,7 +80,7 @@ MonoBehaviour:
   - {fileID: 7117944316692728433}
   carriedPixelVisual: {fileID: 2000}
   carriedPixelRenderer: {fileID: 2003}
-  carriedPixelSizeMultiplier: 0.7
+  carriedPixelSizeMultiplier: 0.45
   carriedPixelPopDuration: 0.18
   carriedPixelPopScale: 1.12
   carriedPixelPopPoint: 0.65
@@ -151,7 +151,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2000}
-  m_Mesh: {fileID: 4300000, guid: e0b1e9856279d83448e345e581d0eba0, type: 2}
+  m_Mesh: {fileID: -864259460963330315, guid: 32d8be52a428dbc4298b12b57f4429a3, type: 3}
 --- !u!23 &2003
 MeshRenderer:
   m_ObjectHideFlags: 0

@@ -13,6 +13,12 @@ namespace ColonyFlow
         [SerializeField] private Collider clickCollider;
         [SerializeField] private Animator animator;
         [SerializeField] private Transform visualRoot;
+        [SerializeField] private Renderer[] additionalDimRenderers;
+        [SerializeField] private Renderer[] outlineRenderers;
+        [SerializeField, Range(0f, 0.1f)] private float outlineWidth = 0.03f;
+        [SerializeField, Range(0.1f, 1f)] private float unavailableBrightness = 0.6f;
+        [SerializeField] private Color additionalRendererColor =
+            new Color(0.78f, 0.8f, 0.78f, 1f);
         [SerializeField, Min(0.1f)] private float moveSpeed = 8f;
         [SerializeField, Min(0.1f)] private float columnReflowSpeed = 4f;
         [SerializeField, Min(0.01f)] private float disappearDuration = 0.32f;
@@ -22,6 +28,7 @@ namespace ColonyFlow
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
+        private static readonly int OutlineWidthId = Shader.PropertyToID("_OutlineWidth");
         private MaterialPropertyBlock propertyBlock;
         [SerializeField] private Colony colony;
         private LevelManager levelManager;
@@ -37,6 +44,8 @@ namespace ColonyFlow
         private Vector3 visualRestingScale;
         private float trayBounceTime;
         private bool isTrayBouncing;
+        private bool isNormallySelectable;
+        private bool selectionFeedbackInitialized;
         private static readonly Dictionary<Collider, ColonyView> ClickTargets = new Dictionary<Collider, ColonyView>();
 
         private const string IdleAnim = "Idle";
@@ -83,6 +92,8 @@ namespace ColonyFlow
             animName = null;
             displayedCount = -1;
             isTrayBouncing = false;
+            isNormallySelectable = false;
+            selectionFeedbackInitialized = false;
             if (visualRoot != null)
                 visualRoot.localScale = visualRestingScale;
             if (animator != null)
@@ -95,6 +106,8 @@ namespace ColonyFlow
             if (bodyRenderer == null)
                 throw new MissingReferenceException($"{name}: ColonyView requires a serialized Renderer reference.");
             ApplyColor();
+            ApplyOutlineWidth();
+            SetOutlineEnabled(false);
             SyncCount();
             colony.CountChanged += RefreshCount;
             colony.StateChanged += OnStateChanged;
@@ -146,6 +159,17 @@ namespace ColonyFlow
         internal void SetOwnerColumn(int ownerColumn)
         {
             columnIndex = ownerColumn;
+        }
+
+        internal void SetPickFeedback(bool normallySelectable)
+        {
+            if (selectionFeedbackInitialized &&
+                isNormallySelectable == normallySelectable)
+                return;
+
+            isNormallySelectable = normallySelectable;
+            selectionFeedbackInitialized = true;
+            ApplyPickFeedback();
         }
 
         public void PlayDisappear()
@@ -254,6 +278,7 @@ namespace ColonyFlow
 
         private void OnStateChanged(Colony changed, ColonyState state)
         {
+            ApplyPickFeedback();
             if (state == ColonyState.Completed)
                 BeginDisappear();
         }
@@ -297,23 +322,87 @@ namespace ColonyFlow
             if (bodyRenderer == null || colony == null)
                 return;
 
-            Color tint = PixelColorUtility.ToUnityColor(colony.Color);
+            float brightness = GetBrightness();
+            Color tint = MultiplyRgb(PixelColorUtility.ToUnityColor(colony.Color), brightness);
             Color sideTint = Color.Lerp(tint, Color.black, 0.14f);
-            bodyRenderer.GetPropertyBlock(propertyBlock);
-            propertyBlock.SetColor(BaseColorId, sideTint);
-            propertyBlock.SetColor(ColorId, sideTint);
-            bodyRenderer.SetPropertyBlock(propertyBlock);
+            SetRendererColor(bodyRenderer, sideTint);
 
             if (topRenderer != null)
-            {
-                topRenderer.GetPropertyBlock(propertyBlock);
-                propertyBlock.SetColor(BaseColorId, tint);
-                propertyBlock.SetColor(ColorId, tint);
-                topRenderer.SetPropertyBlock(propertyBlock);
-            }
+                SetRendererColor(topRenderer, tint);
+
+            if (additionalDimRenderers != null)
+                for (int i = 0; i < additionalDimRenderers.Length; i++)
+                    SetRendererColor(additionalDimRenderers[i],
+                        MultiplyRgb(additionalRendererColor, brightness));
 
             if (countText != null)
-                countText.color = Color.white;
+                countText.color = MultiplyRgb(Color.white, brightness);
+        }
+
+        private void ApplyPickFeedback()
+        {
+            if (colony == null)
+                return;
+
+            bool selectableInColumn = colony.State == ColonyState.InColumn &&
+                                      isNormallySelectable;
+            SetOutlineEnabled(selectableInColumn);
+            ApplyColor();
+        }
+
+        private float GetBrightness()
+        {
+            if (colony == null || colony.State != ColonyState.InColumn ||
+                isNormallySelectable)
+                return 1f;
+            return unavailableBrightness;
+        }
+
+        private void SetOutlineEnabled(bool value)
+        {
+            if (outlineRenderers == null)
+                return;
+
+            for (int i = 0; i < outlineRenderers.Length; i++)
+                if (outlineRenderers[i] != null)
+                    outlineRenderers[i].enabled = value;
+        }
+
+        private void ApplyOutlineWidth()
+        {
+            if (outlineRenderers == null)
+                return;
+
+            for (int i = 0; i < outlineRenderers.Length; i++)
+            {
+                Renderer outlineRenderer = outlineRenderers[i];
+                if (outlineRenderer == null)
+                    continue;
+
+                outlineRenderer.GetPropertyBlock(propertyBlock);
+                propertyBlock.SetFloat(OutlineWidthId, outlineWidth);
+                outlineRenderer.SetPropertyBlock(propertyBlock);
+            }
+        }
+
+        private void SetRendererColor(Renderer target, Color color)
+        {
+            if (target == null)
+                return;
+
+            target.GetPropertyBlock(propertyBlock);
+            propertyBlock.SetColor(BaseColorId, color);
+            propertyBlock.SetColor(ColorId, color);
+            target.SetPropertyBlock(propertyBlock);
+        }
+
+        private static Color MultiplyRgb(Color color, float multiplier)
+        {
+            color.r *= multiplier;
+            color.g *= multiplier;
+            color.b *= multiplier;
+            color.a = 1f;
+            return color;
         }
     }
 }

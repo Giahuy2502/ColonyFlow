@@ -10,8 +10,11 @@ namespace ColonyFlow.Editor
     {
         private const string ModelFolder = "Assets/_Game/Models";
         private const string MeshPath = ModelFolder + "/SoftBeveledCube.asset";
-        private const string PixelMeshPath = ModelFolder + "/PixelRoundedCube.asset";
+        private const string PixelModelPath = ModelFolder + "/rounded_cube.fbx";
         private const string BaseMaterialPath = "Assets/_Game/Materials/ColonyBase.mat";
+        private const string OutlineMaterialPath =
+            "Assets/_Game/Materials/ColonyOutline.mat";
+        private const string OutlineShaderName = "ColonyFlow/Colony Outline";
 
         static ColonyFlowModelBuilder()
         {
@@ -26,6 +29,15 @@ namespace ColonyFlow.Editor
         [MenuItem("Colony Flow/Rebuild Gameplay Models")]
         private static void Rebuild() => Build(true);
         private static void BuildIfNeeded() => Build(false);
+
+        public static void RefreshColonyPrefab()
+        {
+            Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(MeshPath);
+            if (mesh == null)
+                throw new MissingReferenceException($"Missing colony mesh at {MeshPath}.");
+            BuildColonyModel(mesh);
+            AssetDatabase.SaveAssets();
+        }
 
         private static void Build(bool force)
         {
@@ -46,22 +58,9 @@ namespace ColonyFlow.Editor
                 Object.DestroyImmediate(rebuilt);
             }
 
-            Mesh pixelMesh = AssetDatabase.LoadAssetAtPath<Mesh>(PixelMeshPath);
-            if (pixelMesh == null)
-            {
-                pixelMesh = CreateBeveledCube(0.16f, 4);
-                pixelMesh.name = "Pixel Rounded Cube";
-                AssetDatabase.CreateAsset(pixelMesh, PixelMeshPath);
-            }
-            else if (force)
-            {
-                Mesh rebuilt = CreateBeveledCube(0.16f, 4);
-                rebuilt.name = "Pixel Rounded Cube";
-                EditorUtility.CopySerialized(rebuilt, pixelMesh);
-                Object.DestroyImmediate(rebuilt);
-            }
-
-            AssignPrefabMesh("Assets/_Game/Prefabs/Pixel.prefab", pixelMesh, "Pixel");
+            Mesh pixelMesh = LoadFirstMesh(PixelModelPath);
+            if (pixelMesh != null)
+                AssignPrefabMesh("Assets/_Game/Prefabs/Pixel.prefab", pixelMesh, "Pixel");
             BuildColonyModel(mesh);
             BuildTraySlot(mesh);
             AssetDatabase.SaveAssets();
@@ -73,6 +72,9 @@ namespace ColonyFlow.Editor
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
                 return;
             Material baseMaterial = GetBaseMaterial();
+            Material outlineMaterial = GetOutlineMaterial();
+            if (outlineMaterial == null)
+                return;
             GameObject root = PrefabUtility.LoadPrefabContents(path);
             try
             {
@@ -81,17 +83,125 @@ namespace ColonyFlow.Editor
                     if (filter.name == "Colony" || filter.name == "Soft Top")
                         filter.sharedMesh = mesh;
 
-                Transform oldWrap = root.transform.Find("Gift Wrap");
-                if (oldWrap != null)
-                    Object.DestroyImmediate(oldWrap.gameObject);
-                Transform oldBase = root.transform.Find("Colony Base");
-                if (oldBase != null)
-                    Object.DestroyImmediate(oldBase.gameObject);
-                CreateModelPart("Colony Base", root.transform, mesh, baseMaterial,
-                    new Vector3(0f, -0.53f, 0.035f), new Vector3(1.06f, 0.18f, 1.06f), Vector3.zero);
+                RemoveDirectChildrenNamed(root.transform, "Gift Wrap");
+                Transform visualRoot = root.transform.Find("Visual") ?? root.transform;
+                if (visualRoot != root.transform)
+                    RemoveDirectChildrenNamed(root.transform, "Colony Base");
+
+                MeshRenderer baseRenderer = EnsureModelPart("Colony Base", visualRoot,
+                    mesh, baseMaterial, new Vector3(0f, -0.53f, 0.035f),
+                    new Vector3(1.06f, 0.18f, 1.06f), Vector3.zero);
+                Transform top = visualRoot.Find("Soft Top");
+                MeshRenderer topOutline = top != null
+                    ? EnsureOutlinePart(top, outlineMaterial)
+                    : null;
+                MeshRenderer baseOutline = EnsureOutlinePart(
+                    baseRenderer.transform, outlineMaterial);
+                AssignFeedbackRenderers(root, baseRenderer, topOutline, baseOutline);
                 PrefabUtility.SaveAsPrefabAsset(root, path);
             }
             finally { PrefabUtility.UnloadPrefabContents(root); }
+        }
+
+        private static MeshRenderer EnsureModelPart(string objectName, Transform parent,
+            Mesh mesh, Material material, Vector3 position, Vector3 scale, Vector3 rotation)
+        {
+            Transform part = FindSingleDirectChild(parent, objectName);
+            if (part == null)
+            {
+                var partObject = new GameObject(objectName);
+                part = partObject.transform;
+                part.SetParent(parent, false);
+            }
+
+            part.localPosition = position;
+            part.localRotation = Quaternion.Euler(rotation);
+            part.localScale = scale;
+            if (!part.TryGetComponent(out MeshFilter filter))
+                filter = part.gameObject.AddComponent<MeshFilter>();
+            if (!part.TryGetComponent(out MeshRenderer renderer))
+                renderer = part.gameObject.AddComponent<MeshRenderer>();
+            filter.sharedMesh = mesh;
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = true;
+            return renderer;
+        }
+
+        private static MeshRenderer EnsureOutlinePart(Transform source, Material material)
+        {
+            Transform outline = FindSingleDirectChild(source, "Colony Outline");
+            if (outline == null)
+            {
+                var outlineObject = new GameObject("Colony Outline");
+                outline = outlineObject.transform;
+                outline.SetParent(source, false);
+            }
+
+            outline.localPosition = Vector3.zero;
+            outline.localRotation = Quaternion.identity;
+            outline.localScale = Vector3.one;
+            MeshFilter sourceFilter = source.GetComponent<MeshFilter>();
+            if (!outline.TryGetComponent(out MeshFilter outlineFilter))
+                outlineFilter = outline.gameObject.AddComponent<MeshFilter>();
+            if (!outline.TryGetComponent(out MeshRenderer renderer))
+                renderer = outline.gameObject.AddComponent<MeshRenderer>();
+            outlineFilter.sharedMesh = sourceFilter != null ? sourceFilter.sharedMesh : null;
+            renderer.sharedMaterial = material;
+            renderer.enabled = false;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            renderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+            return renderer;
+        }
+
+        private static Transform FindSingleDirectChild(Transform parent, string childName)
+        {
+            Transform first = null;
+            for (int i = parent.childCount - 1; i >= 0; i--)
+            {
+                Transform child = parent.GetChild(i);
+                if (child.name != childName)
+                    continue;
+                if (first == null)
+                    first = child;
+                else
+                    Object.DestroyImmediate(child.gameObject);
+            }
+            return first;
+        }
+
+        private static void RemoveDirectChildrenNamed(Transform parent, string childName)
+        {
+            for (int i = parent.childCount - 1; i >= 0; i--)
+            {
+                Transform child = parent.GetChild(i);
+                if (child.name == childName)
+                    Object.DestroyImmediate(child.gameObject);
+            }
+        }
+
+        private static void AssignFeedbackRenderers(GameObject root,
+            Renderer baseRenderer, params Renderer[] outlineRenderers)
+        {
+            ColonyView view = root.GetComponent<ColonyView>();
+            if (view == null)
+                throw new MissingReferenceException(
+                    $"{root.name} requires a ColonyView component.");
+
+            var serializedView = new SerializedObject(view);
+            SerializedProperty dimRenderers =
+                serializedView.FindProperty("additionalDimRenderers");
+            dimRenderers.arraySize = 1;
+            dimRenderers.GetArrayElementAtIndex(0).objectReferenceValue = baseRenderer;
+
+            SerializedProperty outlines = serializedView.FindProperty("outlineRenderers");
+            outlines.arraySize = outlineRenderers.Length;
+            for (int i = 0; i < outlineRenderers.Length; i++)
+                outlines.GetArrayElementAtIndex(i).objectReferenceValue = outlineRenderers[i];
+            serializedView.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void BuildTraySlot(Mesh mesh)
@@ -146,6 +256,34 @@ namespace ColonyFlow.Editor
             return material;
         }
 
+        private static Material GetOutlineMaterial()
+        {
+            Shader shader = Shader.Find(OutlineShaderName);
+            if (shader == null)
+            {
+                Debug.LogError($"Cannot find shader '{OutlineShaderName}'.");
+                return null;
+            }
+
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(OutlineMaterialPath);
+            if (material == null)
+            {
+                material = new Material(shader) { name = "ColonyOutline" };
+                AssetDatabase.CreateAsset(material, OutlineMaterialPath);
+            }
+            else if (material.shader != shader)
+            {
+                material.shader = shader;
+            }
+
+            material.SetColor("_OutlineColor", Color.white);
+            material.SetFloat("_OutlineWidth", 0.03f);
+            material.enableInstancing = true;
+            material.renderQueue = 1999;
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
         private static void AssignPrefabMesh(string path, Mesh mesh, params string[] objectNames)
         {
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
@@ -164,6 +302,17 @@ namespace ColonyFlow.Editor
                 PrefabUtility.SaveAsPrefabAsset(root, path);
             }
             finally { PrefabUtility.UnloadPrefabContents(root); }
+        }
+
+        private static Mesh LoadFirstMesh(string modelPath)
+        {
+            Object[] assets = AssetDatabase.LoadAllAssetsAtPath(modelPath);
+            for (int i = 0; i < assets.Length; i++)
+                if (assets[i] is Mesh mesh)
+                    return mesh;
+
+            Debug.LogError($"Cannot find a Mesh in model '{modelPath}'.");
+            return null;
         }
 
         private static Mesh CreateBeveledCube(float radius, int bevelSegments)

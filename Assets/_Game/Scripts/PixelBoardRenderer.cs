@@ -16,7 +16,8 @@ namespace ColonyFlow
         [SerializeField] private Transform pixelRoot;
         [SerializeField] private PixelColorUtility colorPalette;
         [SerializeField] private Material pixelMaterial;
-        [SerializeField] private Vector3 pixelScale = new Vector3(0.84f, 1.18f, 0.84f);
+        [SerializeField] private Vector3 pixelScale = Vector3.one;
+        [SerializeField, Range(1f, 1.25f)] private float pixelTopFaceCompensation = 1.08f;
         [Header("Fixed Board Frame")]
         [SerializeField] private Vector2 frameInnerSize = new Vector2(4.4f, 4.4f);
         [SerializeField, Min(0.01f)] private float frameCellSize = 0.176f;
@@ -215,11 +216,30 @@ namespace ColonyFlow
                     pixel.TF.SetParent(pixelRoot, false);
                     pixel.TF.localPosition = board.GridToLocalPosition(position);
                     pixel.TF.localRotation = Quaternion.identity;
-                    pixel.TF.localScale = pixelScale * board.CellSize;
+                    pixel.TF.localScale = CalculatePixelLocalScale(pixel);
                     pixel.Initialize(position, cell.Color);
                     pixelsByBoardIndex[y * boardSize.x + x] = pixel;
                 }
             }
+        }
+
+        private Vector3 CalculatePixelLocalScale(Pixel pixel)
+        {
+            Vector3 desiredSize = pixelScale * board.CellSize;
+            desiredSize.x *= pixelTopFaceCompensation;
+            desiredSize.z *= pixelTopFaceCompensation;
+            Vector3 meshSize = pixel != null
+                ? pixel.VisualLocalBoundsSize
+                : Vector3.one;
+            return new Vector3(
+                DivideByMeshSize(desiredSize.x, meshSize.x),
+                DivideByMeshSize(desiredSize.y, meshSize.y),
+                DivideByMeshSize(desiredSize.z, meshSize.z));
+        }
+
+        private static float DivideByMeshSize(float desiredSize, float meshSize)
+        {
+            return desiredSize / (meshSize > 0.0001f ? meshSize : 1f);
         }
 
         private void ClearRuntimeVisuals()

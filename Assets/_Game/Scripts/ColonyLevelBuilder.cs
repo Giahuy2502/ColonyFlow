@@ -72,6 +72,7 @@ namespace ColonyFlow
         private readonly List<int> remainingCounts = new List<int>();
         private int trayCapacity;
         private bool columnLayoutRefreshPending;
+        private bool pickFeedbackRefreshPending;
         private float pendingColumnAnimationDuration = -1f;
 
         private void Awake()
@@ -87,13 +88,17 @@ namespace ColonyFlow
 
         private void LateUpdate()
         {
-            if (!columnLayoutRefreshPending)
-                return;
+            if (columnLayoutRefreshPending)
+            {
+                columnLayoutRefreshPending = false;
+                float animationDuration = pendingColumnAnimationDuration;
+                pendingColumnAnimationDuration = -1f;
+                RefreshColumnPositions(animationDuration);
+                pickFeedbackRefreshPending = true;
+            }
 
-            columnLayoutRefreshPending = false;
-            float animationDuration = pendingColumnAnimationDuration;
-            pendingColumnAnimationDuration = -1f;
-            RefreshColumnPositions(animationDuration);
+            if (pickFeedbackRefreshPending)
+                RefreshPickFeedback();
         }
 
         public bool BuildLevel(ColonyLevelData levelData)
@@ -162,6 +167,7 @@ namespace ColonyFlow
             shuffledColonies.Clear();
             remainingCounts.Clear();
             columnLayoutRefreshPending = false;
+            pickFeedbackRefreshPending = false;
             pendingColumnAnimationDuration = -1f;
         }
 
@@ -230,6 +236,7 @@ namespace ColonyFlow
             RefreshTrayLayout(true);
             for (int i = 0; i < newSlots.Count; i++)
                 StartCoroutine(PopTraySlot(newSlots[i].slot, newSlots[i].targetScale));
+            RequestPickFeedbackRefresh();
             return true;
         }
 
@@ -313,6 +320,25 @@ namespace ColonyFlow
 
             columnLayoutRefreshPending = true;
             return colonyScratch.Count;
+        }
+
+        internal void RefreshPickFeedback()
+        {
+            pickFeedbackRefreshPending = false;
+            for (int columnIndex = 0; columnIndex < columnViews.Count; columnIndex++)
+                for (int i = 0; i < columnViews[columnIndex].Count; i++)
+                {
+                    ColonyView view = columnViews[columnIndex][i];
+                    if (view != null)
+                        view.SetPickFeedback(levelManager != null &&
+                            levelManager.IsColonyNormallySelectable(
+                                view.Colony, columnIndex));
+                }
+        }
+
+        private void RequestPickFeedbackRefresh()
+        {
+            pickFeedbackRefreshPending = true;
         }
 
         private void RefreshTrayLayout(bool animateColonies)
@@ -420,12 +446,14 @@ namespace ColonyFlow
             // ColonyAdded fires before ColonyColumn.TryTakeFront updates the
             // column. Reflow in LateUpdate after the column state is current.
             columnLayoutRefreshPending = true;
+            RequestPickFeedbackRefresh();
         }
 
         private void OnColonyRemoved(int slotIndex, Colony colony)
         {
             if (views.TryGetValue(colony, out ColonyView view))
                 view.PlayDisappear();
+            RequestPickFeedbackRefresh();
         }
 
         private void RefreshColumnPositions(float animationDuration)

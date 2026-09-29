@@ -100,6 +100,7 @@ namespace ColonyFlow
             }
 
             IsPlaying = true;
+            levelBuilder.RefreshPickFeedback();
             EvaluateColumnsEmptied();
             EvaluateAllColonies();
             EvaluateProgress();
@@ -173,6 +174,7 @@ namespace ColonyFlow
                 IsPaused = paused;
                 if (paused)
                     boosterManager?.CancelTargetMode();
+                levelBuilder?.RefreshPickFeedback();
             }
         }
 
@@ -273,6 +275,17 @@ namespace ColonyFlow
             EvaluateColony(colony);
             EvaluateProgress();
             return true;
+        }
+
+        internal bool IsColonyNormallySelectable(Colony colony, int columnIndex)
+        {
+            if (!CanProcessGameplay || colony == null ||
+                colony.State != ColonyState.InColumn || tray == null ||
+                !tray.HasFreeSlot || columnIndex < 0 ||
+                columnIndex >= columns.Count || columns[columnIndex] == null)
+                return false;
+
+            return columns[columnIndex].Peek() == colony;
         }
 
         internal void CopyTaskIdsByColor(PixelColor color, List<int> destination)
@@ -494,6 +507,7 @@ namespace ColonyFlow
             IsPlaying = false;
             IsPaused = false;
             boosterManager?.CancelTargetMode();
+            levelBuilder?.RefreshPickFeedback();
             cleanupPending = true;
             LevelCompleted?.Invoke(result);
         }

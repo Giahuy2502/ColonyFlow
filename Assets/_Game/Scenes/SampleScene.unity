@@ -236,11 +236,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   board: {fileID: 900003}
-  pixelPrefab: {fileID: 1004, guid: ccf3238a62ca44c798ae8cb1f6ba9681, type: 3}
+  pixelMesh: {fileID: 4300000, guid: e0b1e9856279d83448e345e581d0eba0, type: 2}
   pixelRoot: {fileID: 933002}
   colorPalette: {fileID: 11400000, guid: 52a719d99e4a4ae8bd880a2a9fc2ee80, type: 2}
   pixelMaterial: {fileID: 2100000, guid: bb530838e84149398ff5afaf4a876be1, type: 2}
   pixelScale: {x: 1, y: 1, z: 1}
+  instanceBatchSize: 1023
   frameGridSize: {x: 25, y: 25}
   frameCellSize: 0.176
   borderWidth: 0.304
@@ -1589,7 +1590,9 @@ MonoBehaviour:
   dataManager: {fileID: 744969649}
   levelManager: {fileID: 45601132}
   useInspectorLevel: 1
-  inspectorLevelNumber: 2
+  inspectorLevelNumber: 1
+  normalTimeScale: 1
+  doubleTimeScale: 2
 --- !u!1 &1662146539
 GameObject:
   m_ObjectHideFlags: 0
@@ -2234,7 +2237,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c7f9a4e19c4b4d1c8a13c85044d8d742, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ColonyFlow.GameplayBackground
   targetCamera: {fileID: 330585545}
   targetRenderer: {fileID: 2100000003}

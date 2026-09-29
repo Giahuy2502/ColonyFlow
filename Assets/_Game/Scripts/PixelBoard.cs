@@ -338,6 +338,61 @@ namespace ColonyFlow
             return IsBuilt && IsValidColor(color) && availableByColor[(int)color].Count > 0;
         }
 
+        public bool HasReachableAvailablePixel(PixelColor color)
+        {
+            if (!IsBuilt || !IsValidColor(color) || pathQueue == null)
+                return false;
+
+            HashSet<int> candidates = availableByColor[(int)color];
+            if (candidates.Count == 0)
+                return false;
+
+            BeginPathSearch();
+            int head = 0;
+            int tail = 0;
+            int perimeterLength = 2 * width + 2 * height + 4;
+            for (int perimeterIndex = 0; perimeterIndex < perimeterLength; perimeterIndex++)
+            {
+                Vector2Int perimeterCell = FromPerimeterIndex(perimeterIndex);
+                int expandedIndex = ToExpandedIndex(perimeterCell);
+                pathQueue[tail++] = expandedIndex;
+                pathVisitVersions[expandedIndex] = pathVisitVersion;
+            }
+
+            while (head < tail)
+            {
+                Vector2Int current = FromExpandedIndex(pathQueue[head++]);
+                for (int i = 0; i < Directions.Length; i++)
+                {
+                    Vector2Int neighbour = current + Directions[i];
+                    if (!IsInside(neighbour.x, neighbour.y))
+                        continue;
+
+                    int cellIndex = ToIndex(neighbour.x, neighbour.y);
+                    PixelCell cell = cells[cellIndex];
+                    if (candidates.Contains(cellIndex) &&
+                        cell.State == PixelCellState.Present && cell.Color == color)
+                        return true;
+                }
+
+                for (int i = 0; i < Directions.Length; i++)
+                {
+                    Vector2Int next = current + Directions[i];
+                    if (!IsExpandedCell(next) || !IsPathWalkable(next))
+                        continue;
+
+                    int nextIndex = ToExpandedIndex(next);
+                    if (pathVisitVersions[nextIndex] == pathVisitVersion)
+                        continue;
+
+                    pathVisitVersions[nextIndex] = pathVisitVersion;
+                    pathQueue[tail++] = nextIndex;
+                }
+            }
+
+            return false;
+        }
+
         public Vector3 GridToLocalPosition(Vector2Int position)
         {
             return new Vector3(position.x * cellSize, 0f, position.y * cellSize);

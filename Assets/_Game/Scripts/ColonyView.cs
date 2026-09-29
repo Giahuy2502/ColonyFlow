@@ -207,6 +207,7 @@ namespace ColonyFlow
                 {
                     activateOnArrival = false;
                     colony.Activate();
+                    levelManager?.ReevaluateProgress();
                 }
             }
         }

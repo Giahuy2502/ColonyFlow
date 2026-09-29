@@ -48,6 +48,7 @@ namespace ColonyFlow
         private float deadlockCandidateSince;
         private bool deadlockCandidate;
         private bool cleanupPending;
+        private bool columnsEmptiedNotified;
 
         public bool IsPlaying { get; private set; }
         public bool IsPaused { get; private set; }
@@ -61,6 +62,7 @@ namespace ColonyFlow
         public event Action<ColonyTask> TaskCreated;
         public event Action<ColonyTask> TaskCompleted;
         public event Action<ColonyTask> TaskCancelled;
+        public event Action ColumnsEmptied;
 
         protected override void Awake()
         {
@@ -99,6 +101,7 @@ namespace ColonyFlow
             }
 
             IsPlaying = true;
+            EvaluateColumnsEmptied();
             EvaluateAllColonies();
             EvaluateProgress();
             return true;
@@ -110,6 +113,7 @@ namespace ColonyFlow
             IsPaused = false;
             cleanupPending = false;
             deadlockCandidate = false;
+            columnsEmptiedNotified = false;
             boosterManager?.UnloadLevel();
             antManager?.Shutdown();
             DetachBoardEvents();
@@ -136,6 +140,7 @@ namespace ColonyFlow
             columns.Clear();
             if (colonyColumns != null)
                 columns.AddRange(colonyColumns);
+            columnsEmptiedNotified = false;
             boosterManager?.Configure(this, levelBuilder, antManager, board, tray, columns);
             simulateTasks = simulateWithoutAnt;
             simulatedTaskInterval = Mathf.Max(0.01f, taskInterval);
@@ -157,6 +162,7 @@ namespace ColonyFlow
 
         public void ReevaluateProgress()
         {
+            EvaluateColumnsEmptied();
             EvaluateAllColonies();
             EvaluateProgress();
         }
@@ -264,6 +270,7 @@ namespace ColonyFlow
             }
 
             SoundManager.Instance?.PlaySfx(SfxId.ColonySelect);
+            EvaluateColumnsEmptied();
             EvaluateColony(colony);
             EvaluateProgress();
             return true;
@@ -386,7 +393,7 @@ namespace ColonyFlow
                 return;
             bool canProgress = colony.InFlightCount > 0 ||
                                (colony.UnassignedCount > 0 &&
-                                board.HasAvailablePixel(colony.Color));
+                                board.HasReachableAvailablePixel(colony.Color));
             colony.SetBlocked(!canProgress);
         }
 
@@ -415,7 +422,8 @@ namespace ColonyFlow
             {
                 Colony colony = trayColonies[i];
                 if (colony.State == ColonyState.MovingToTray ||
-                    (colony.CanReceiveTask && board.HasAvailablePixel(colony.Color)))
+                    (colony.CanReceiveTask &&
+                     board.HasReachableAvailablePixel(colony.Color)))
                 {
                     CancelDeadlockCheck();
                     return;
@@ -450,6 +458,19 @@ namespace ColonyFlow
         private void CancelDeadlockCheck()
         {
             deadlockCandidate = false;
+        }
+
+        private void EvaluateColumnsEmptied()
+        {
+            if (!IsPlaying || columnsEmptiedNotified || columns.Count == 0)
+                return;
+
+            for (int i = 0; i < columns.Count; i++)
+                if (columns[i] != null && columns[i].HasColony)
+                    return;
+
+            columnsEmptiedNotified = true;
+            ColumnsEmptied?.Invoke();
         }
 
         private void OnBoardCompleted()

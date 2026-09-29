@@ -13,11 +13,13 @@ namespace ColonyFlow
         private static readonly int ColorId = Shader.PropertyToID("_Color");
 
         [SerializeField] private PixelBoard board;
-        [SerializeField] private Pixel pixelPrefab;
+        [Header("Instanced Pixels")]
+        [SerializeField] private Mesh pixelMesh;
         [SerializeField] private Transform pixelRoot;
         [SerializeField] private PixelColorUtility colorPalette;
         [SerializeField] private Material pixelMaterial;
         [SerializeField] private Vector3 pixelScale = new Vector3(0.84f, 1.18f, 0.84f);
+        [SerializeField, Range(1, 1023)] private int instanceBatchSize = 1023;
         [Header("Fixed Board Frame")]
         [SerializeField] private Vector2Int frameGridSize = new Vector2Int(25, 25);
         [SerializeField, Min(0.01f)] private float frameCellSize = 0.176f;
@@ -36,8 +38,11 @@ namespace ColonyFlow
         [SerializeField] private ShadowCastingMode castShadows = ShadowCastingMode.On;
         [SerializeField] private bool receiveShadows = true;
 
-        private readonly Dictionary<int, Pixel> pixelsByIndex = new Dictionary<int, Pixel>();
-        private readonly Queue<Pixel> pixelPool = new Queue<Pixel>();
+        private readonly Dictionary<int, InstanceLocation> instancesByBoardIndex =
+            new Dictionary<int, InstanceLocation>();
+        private InstanceBatch[] instanceBatches;
+        private Matrix4x4 lastPixelRootMatrix;
+        private bool worldMatricesDirty;
         private MaterialPropertyBlock[] colorBlocks;
         private MaterialPropertyBlock boardSurfaceBlock;
         private MaterialPropertyBlock outerBorderBlock;
@@ -48,6 +53,26 @@ namespace ColonyFlow
         public Vector3 CurrentPixelWorldScale => board != null
             ? Vector3.Scale(pixelScale * board.CellSize, board.transform.lossyScale)
             : Vector3.zero;
+
+        private readonly struct InstanceLocation
+        {
+            public readonly int ColorIndex;
+            public readonly int InstanceIndex;
+
+            public InstanceLocation(int colorIndex, int instanceIndex)
+            {
+                ColorIndex = colorIndex;
+                InstanceIndex = instanceIndex;
+            }
+        }
+
+        private sealed class InstanceBatch
+        {
+            public Matrix4x4[] LocalMatrices = Array.Empty<Matrix4x4>();
+            public Matrix4x4[] WorldMatrices = Array.Empty<Matrix4x4>();
+            public int[] BoardIndices = Array.Empty<int>();
+            public int Count;
+        }
 
         private void Awake()
         {
@@ -92,6 +117,25 @@ namespace ColonyFlow
             DestroyGenerated(outerBorderMesh);
         }
 
+        private void LateUpdate()
+        {
+            if (!Application.isPlaying || instanceBatches == null ||
+                pixelMesh == null || pixelMaterial == null || pixelRoot == null)
+                return;
+
+            Matrix4x4 rootMatrix = pixelRoot.localToWorldMatrix;
+            if (rootMatrix != lastPixelRootMatrix)
+            {
+                lastPixelRootMatrix = rootMatrix;
+                worldMatricesDirty = true;
+            }
+
+            if (worldMatricesDirty)
+                RefreshWorldMatrices(rootMatrix);
+
+            DrawPixelInstances();
+        }
+
         private void OnValidate()
         {
             if (!Application.isPlaying && isActiveAndEnabled)
@@ -104,6 +148,7 @@ namespace ColonyFlow
                 PixelColorUtility.SetDefault(colorPalette);
 
             int colorCount = Enum.GetValues(typeof(PixelColor)).Length;
+            instanceBatches = new InstanceBatch[colorCount];
             colorBlocks = new MaterialPropertyBlock[colorCount];
             boardSurfaceBlock = new MaterialPropertyBlock();
             boardSurfaceBlock.SetColor(BaseColorId, boardSurfaceColor);
@@ -114,11 +159,15 @@ namespace ColonyFlow
 
             for (int i = 0; i < colorCount; i++)
             {
+                instanceBatches[i] = new InstanceBatch();
                 colorBlocks[i] = new MaterialPropertyBlock();
                 UnityEngine.Color tint = PixelColorUtility.ToUnityColor((PixelColor)i);
                 colorBlocks[i].SetColor(BaseColorId, tint);
                 colorBlocks[i].SetColor(ColorId, tint);
             }
+
+            if (pixelMaterial != null)
+                pixelMaterial.enableInstancing = true;
 
             AssignBoardMaterial(boardSurfaceRenderer);
             AssignBoardMaterial(boardFrameRenderer);
@@ -181,20 +230,37 @@ namespace ColonyFlow
 
         private void Rebuild()
         {
-            if (board == null || pixelPrefab == null || pixelRoot == null)
+            if (board == null || pixelMesh == null || pixelRoot == null)
                 return;
 
-            foreach (Pixel pixel in pixelsByIndex.Values)
-            {
-                pixel.MarkCollected();
-                pixelPool.Enqueue(pixel);
-            }
-            pixelsByIndex.Clear();
+            ClearRuntimeVisuals();
 
             if (!board.IsBuilt)
                 return;
 
             Vector2Int boardSize = board.Size;
+            int colorCount = Enum.GetValues(typeof(PixelColor)).Length;
+            int[] countsByColor = new int[colorCount];
+
+            for (int y = 0; y < boardSize.y; y++)
+            {
+                for (int x = 0; x < boardSize.x; x++)
+                {
+                    if (board.TryGetCell(new Vector2Int(x, y), out PixelCell cell) && cell.IsOccupied)
+                        countsByColor[(int)cell.Color]++;
+                }
+            }
+
+            for (int colorIndex = 0; colorIndex < colorCount; colorIndex++)
+            {
+                int capacity = countsByColor[colorIndex];
+                InstanceBatch batch = instanceBatches[colorIndex];
+                batch.LocalMatrices = new Matrix4x4[capacity];
+                batch.WorldMatrices = new Matrix4x4[capacity];
+                batch.BoardIndices = new int[capacity];
+                batch.Count = 0;
+            }
+
             for (int y = 0; y < boardSize.y; y++)
             {
                 for (int x = 0; x < boardSize.x; x++)
@@ -204,37 +270,89 @@ namespace ColonyFlow
                         continue;
 
                     int boardIndex = y * boardSize.x + x;
-                    Pixel pixel = pixelPool.Count > 0
-                        ? pixelPool.Dequeue()
-                        : Instantiate(pixelPrefab, pixelRoot, false);
-                    pixel.name = $"Pixel {x}-{y} {cell.Color}";
-                    pixel.transform.localPosition = board.GridToLocalPosition(position);
-                    pixel.transform.localRotation = Quaternion.identity;
-                    pixel.transform.localScale = pixelScale * board.CellSize;
-                    pixel.Initialize(position, cell.Color);
-                    pixelsByIndex[boardIndex] = pixel;
+                    int colorIndex = (int)cell.Color;
+                    InstanceBatch batch = instanceBatches[colorIndex];
+                    int instanceIndex = batch.Count++;
+                    batch.LocalMatrices[instanceIndex] = Matrix4x4.TRS(
+                        board.GridToLocalPosition(position), Quaternion.identity,
+                        pixelScale * board.CellSize);
+                    batch.BoardIndices[instanceIndex] = boardIndex;
+                    instancesByBoardIndex[boardIndex] =
+                        new InstanceLocation(colorIndex, instanceIndex);
                 }
             }
+
+            lastPixelRootMatrix = pixelRoot.localToWorldMatrix;
+            worldMatricesDirty = true;
         }
 
         private void ClearRuntimeVisuals()
         {
-            foreach (Pixel pixel in pixelsByIndex.Values)
-            {
-                pixel.MarkCollected();
-                pixelPool.Enqueue(pixel);
-            }
-            pixelsByIndex.Clear();
+            instancesByBoardIndex.Clear();
+            if (instanceBatches == null)
+                return;
+
+            for (int i = 0; i < instanceBatches.Length; i++)
+                instanceBatches[i].Count = 0;
         }
 
         private void OnPixelCollected(Vector2Int position, PixelColor color)
         {
             int boardIndex = position.y * board.Size.x + position.x;
-            if (!pixelsByIndex.TryGetValue(boardIndex, out Pixel pixel))
+            if (!instancesByBoardIndex.TryGetValue(boardIndex, out InstanceLocation location))
                 return;
-            pixelsByIndex.Remove(boardIndex);
-            pixel.MarkCollected();
-            pixelPool.Enqueue(pixel);
+
+            instancesByBoardIndex.Remove(boardIndex);
+            InstanceBatch batch = instanceBatches[location.ColorIndex];
+            int lastIndex = batch.Count - 1;
+            if (location.InstanceIndex != lastIndex)
+            {
+                batch.LocalMatrices[location.InstanceIndex] = batch.LocalMatrices[lastIndex];
+                batch.WorldMatrices[location.InstanceIndex] = batch.WorldMatrices[lastIndex];
+                int movedBoardIndex = batch.BoardIndices[lastIndex];
+                batch.BoardIndices[location.InstanceIndex] = movedBoardIndex;
+                instancesByBoardIndex[movedBoardIndex] =
+                    new InstanceLocation(location.ColorIndex, location.InstanceIndex);
+            }
+            batch.Count = lastIndex;
+        }
+
+        private void RefreshWorldMatrices(Matrix4x4 rootMatrix)
+        {
+            for (int colorIndex = 0; colorIndex < instanceBatches.Length; colorIndex++)
+            {
+                InstanceBatch batch = instanceBatches[colorIndex];
+                for (int instanceIndex = 0; instanceIndex < batch.Count; instanceIndex++)
+                    batch.WorldMatrices[instanceIndex] = rootMatrix * batch.LocalMatrices[instanceIndex];
+            }
+            worldMatricesDirty = false;
+        }
+
+        private void DrawPixelInstances()
+        {
+            int batchLimit = Mathf.Clamp(instanceBatchSize, 1, 1023);
+            for (int colorIndex = 0; colorIndex < instanceBatches.Length; colorIndex++)
+            {
+                InstanceBatch batch = instanceBatches[colorIndex];
+                if (batch.Count == 0)
+                    continue;
+
+                var renderParams = new RenderParams(pixelMaterial)
+                {
+                    matProps = colorBlocks[colorIndex],
+                    layer = gameObject.layer,
+                    shadowCastingMode = castShadows,
+                    receiveShadows = receiveShadows,
+                    lightProbeUsage = LightProbeUsage.Off
+                };
+
+                for (int start = 0; start < batch.Count; start += batchLimit)
+                {
+                    int count = Mathf.Min(batchLimit, batch.Count - start);
+                    Graphics.RenderMeshInstanced(renderParams, pixelMesh, 0,
+                        batch.WorldMatrices, count, start);
+                }
+            }
         }
 
         private void AssignBoardMaterial(MeshRenderer targetRenderer)

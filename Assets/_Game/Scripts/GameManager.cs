@@ -23,8 +23,12 @@ namespace ColonyFlow
         [Header("Level Testing")]
         [SerializeField] private bool useInspectorLevel;
         [SerializeField, Min(1)] private int inspectorLevelNumber = 1;
+        [Header("Gameplay Speed")]
+        [SerializeField, Min(0.01f)] private float normalTimeScale = 1f;
+        [SerializeField, Min(0.01f)] private float doubleTimeScale = 2f;
 
         private bool doubleSpeed;
+        private bool autoDoubleSpeed;
         private Coroutine loadRoutine;
 
         public GameState State { get; private set; } = GameState.Loading;
@@ -41,8 +45,10 @@ namespace ColonyFlow
             }
         }
         public bool IsDoubleSpeed => doubleSpeed;
+        public bool IsAutoDoubleSpeed => autoDoubleSpeed;
 
         public event Action<GameState> StateChanged;
+        public event Action SpeedChanged;
 
         protected override void Awake()
         {
@@ -65,14 +71,18 @@ namespace ColonyFlow
             }
 
             levelManager.LevelCompleted += OnLevelCompleted;
+            levelManager.ColumnsEmptied += OnColumnsEmptied;
             EnterMainMenu();
         }
 
         protected override void OnDestroy()
         {
             if (levelManager != null)
+            {
                 levelManager.LevelCompleted -= OnLevelCompleted;
-            Time.timeScale = 1f;
+                levelManager.ColumnsEmptied -= OnColumnsEmptied;
+            }
+            Time.timeScale = normalTimeScale;
             base.OnDestroy();
         }
 
@@ -150,10 +160,9 @@ namespace ColonyFlow
 
         public void ToggleGameSpeed()
         {
-            if (State != GameState.Playing)
+            if (State != GameState.Playing || autoDoubleSpeed)
                 return;
-            doubleSpeed = !doubleSpeed;
-            ApplyGameSpeed();
+            SetSpeedMode(!doubleSpeed, false);
         }
 
         private void RequestLoadLevel(int levelIndex)
@@ -174,8 +183,9 @@ namespace ColonyFlow
 
         private IEnumerator LoadLevelRoutine(ColonyLevelData data, int levelIndex)
         {
+            SetSpeedMode(false, false);
             SetState(GameState.Loading);
-            Time.timeScale = 1f;
+            Time.timeScale = normalTimeScale;
             UIManager.Instance?.CloseAll();
             CanvasLoading loading = UIManager.Instance?.Open<CanvasLoading>();
 
@@ -199,7 +209,6 @@ namespace ColonyFlow
                 yield break;
             }
 
-            doubleSpeed = false;
             SetState(GameState.Playing);
             SoundManager.Instance?.PlayMusic(MusicId.Gameplay);
             UIManager.Instance?.Close<CanvasLoading>();
@@ -210,7 +219,8 @@ namespace ColonyFlow
 
         private void OnLevelCompleted(LevelResult result)
         {
-            Time.timeScale = 1f;
+            SetSpeedMode(false, false);
+            Time.timeScale = normalTimeScale;
             if (result == LevelResult.Victory)
             {
                 SoundManager.Instance?.StopMusic(0.25f);
@@ -233,7 +243,7 @@ namespace ColonyFlow
 
         private void EnterMainMenu()
         {
-            doubleSpeed = false;
+            SetSpeedMode(false, false);
             Time.timeScale = 0f;
             UIManager.Instance?.CloseAll();
             SetState(GameState.MainMenu);
@@ -244,8 +254,24 @@ namespace ColonyFlow
         private void ApplyGameSpeed()
         {
             Time.timeScale = State == GameState.Playing
-                ? (doubleSpeed ? 2f : 1f)
+                ? (doubleSpeed ? doubleTimeScale : normalTimeScale)
                 : 0f;
+        }
+
+        private void OnColumnsEmptied()
+        {
+            SetSpeedMode(true, true);
+        }
+
+        private void SetSpeedMode(bool useDoubleSpeed, bool automatic)
+        {
+            bool changed = doubleSpeed != useDoubleSpeed ||
+                           autoDoubleSpeed != automatic;
+            doubleSpeed = useDoubleSpeed;
+            autoDoubleSpeed = automatic;
+            ApplyGameSpeed();
+            if (changed)
+                SpeedChanged?.Invoke();
         }
 
         private void SetState(GameState next)

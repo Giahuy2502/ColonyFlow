@@ -37,8 +37,12 @@ namespace ColonyFlow
                 loseNotification.Setup();
                 loseNotification.gameObject.SetActive(false);
             }
-            doubleSpeed = GameManager.Instance != null && GameManager.Instance.IsDoubleSpeed;
-            RefreshSpeedIcon();
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.SpeedChanged -= RefreshSpeedState;
+                GameManager.Instance.SpeedChanged += RefreshSpeedState;
+            }
+            RefreshSpeedState();
             ResolveBoosterReferences();
             WireBoosterButtons();
             if (boosterManager != null)
@@ -51,6 +55,8 @@ namespace ColonyFlow
 
         private void OnDisable()
         {
+            if (GameManager.Instance != null)
+                GameManager.Instance.SpeedChanged -= RefreshSpeedState;
             if (boosterManager != null)
                 boosterManager.StateChanged -= RefreshBoosters;
         }
@@ -63,8 +69,7 @@ namespace ColonyFlow
         public void SpeedButton()
         {
             GameManager.Instance?.ToggleGameSpeed();
-            doubleSpeed = GameManager.Instance != null && GameManager.Instance.IsDoubleSpeed;
-            RefreshSpeedIcon();
+            RefreshSpeedState();
         }
 
         public void AddTrayBoosterButton()
@@ -99,6 +104,13 @@ namespace ColonyFlow
             Sprite speedSprite = speedSprites[doubleSpeed ? 1 : 0];
             if (speedSprite != null)
                 speedImage.sprite = speedSprite;
+        }
+
+        private void RefreshSpeedState()
+        {
+            doubleSpeed = GameManager.Instance != null &&
+                          GameManager.Instance.IsDoubleSpeed;
+            RefreshSpeedIcon();
         }
 
         private void ResolveBoosterReferences()

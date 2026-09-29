@@ -9,7 +9,6 @@ namespace ColonyFlow
         [SerializeField] private TextMeshProUGUI aliveText;
         [SerializeField] private Image speedImage;
         [SerializeField] private Sprite[] speedSprites = new Sprite[2];
-        [SerializeField] private LoseNotification loseNotification;
         [Header("Boosters")]
         [SerializeField] private Button addTrayButton;
         [SerializeField] private Button shuffleButton;
@@ -32,11 +31,6 @@ namespace ColonyFlow
         {
             if (aliveText != null && GameManager.Instance != null)
                 aliveText.text = $"Level {GameManager.Instance.DisplayLevelNumber}";
-            if (loseNotification != null)
-            {
-                loseNotification.Setup();
-                loseNotification.gameObject.SetActive(false);
-            }
             if (GameManager.Instance != null)
             {
                 GameManager.Instance.SpeedChanged -= RefreshSpeedState;

@@ -1858,7 +1858,6 @@ MonoBehaviour:
   speedSprites:
   - {fileID: -5637379995246024059, guid: df472cfc31805154ba4eb028292c8065, type: 3}
   - {fileID: -1309894634852652633, guid: 49e1e94edd0629b49bea18775a149b90, type: 3}
-  loseNotification: {fileID: 0}
   addTrayButton: {fileID: 2180318284509284548}
   shuffleButton: {fileID: 1603360038540450329}
   pickHiddenButton: {fileID: 6904470247913134427}

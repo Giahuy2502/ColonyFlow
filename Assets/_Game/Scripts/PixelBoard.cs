@@ -13,6 +13,8 @@ namespace ColonyFlow
         };
 
         [SerializeField] private Vector2Int size = new Vector2Int(5, 5);
+        [SerializeField, Min(0.01f)] private float boardWorldSize = 4.4f;
+        [SerializeField, Min(0f)] private float contentPadding = 0.25f;
         [SerializeField, Min(0.01f)] private float cellSize = 1f;
         [SerializeField] private List<PixelData> pixels = new List<PixelData>();
         [SerializeField] private bool buildOnStart;
@@ -28,9 +30,12 @@ namespace ColonyFlow
         private int pathVisitVersion;
         private int width;
         private int height;
+        private Vector3 gridOrigin;
 
         public Vector2Int Size => IsBuilt ? new Vector2Int(width, height) : size;
+        public float BoardWorldSize => boardWorldSize;
         public float CellSize => cellSize;
+        public float GridCenterLocalX => gridOrigin.x + (Size.x - 1) * cellSize * 0.5f;
         public int RemainingPixels { get; private set; }
         public int Revision { get; private set; }
         public bool IsBuilt => cells != null;
@@ -41,22 +46,38 @@ namespace ColonyFlow
         public event Action<Vector2Int, PixelColor> PixelCollected;
         public event Action Completed;
 
+        private void Awake()
+        {
+            if (size.x > 0 && size.y > 0 && boardWorldSize > 0f &&
+                contentPadding * 2f < boardWorldSize)
+                RecalculateGridLayout();
+        }
+
         private void Start()
         {
             if (buildOnStart && !IsBuilt)
                 BuildBoard();
         }
 
-        public void Configure(Vector2Int boardSize, float newCellSize,
+        private void OnValidate()
+        {
+            if (!Application.isPlaying && size.x > 0 && size.y > 0 &&
+                boardWorldSize > 0f && contentPadding * 2f < boardWorldSize)
+                RecalculateGridLayout();
+        }
+
+        public void Configure(Vector2Int boardSize, float newBoardWorldSize,
             IReadOnlyList<PixelData> levelPixels)
         {
             if (IsBuilt)
                 throw new InvalidOperationException("Configure must be called before BuildBoard.");
-            if (boardSize.x <= 0 || boardSize.y <= 0 || newCellSize <= 0f || levelPixels == null)
+            if (boardSize.x <= 0 || boardSize.y <= 0 || newBoardWorldSize <= 0f ||
+                contentPadding * 2f >= newBoardWorldSize || levelPixels == null)
                 throw new ArgumentException("Invalid board configuration.");
 
             size = boardSize;
-            cellSize = newCellSize;
+            boardWorldSize = newBoardWorldSize;
+            RecalculateGridLayout();
             pixels.Clear();
             for (int i = 0; i < levelPixels.Count; i++)
                 pixels.Add(levelPixels[i]);
@@ -115,15 +136,6 @@ namespace ColonyFlow
         public bool IsExposed(Vector2Int position)
         {
             return TryGetOccupiedIndex(position, out int index) && IsExposed(index);
-        }
-
-        public bool IsAvailable(Vector2Int position, PixelColor color)
-        {
-            if (!TryGetOccupiedIndex(position, out int index))
-                return false;
-
-            PixelCell cell = cells[index];
-            return cell.State == PixelCellState.Present && cell.Color == color && IsExposed(index);
         }
 
         // Reserve before spawning an Ant so two Ants cannot choose the same target.
@@ -308,36 +320,6 @@ namespace ColonyFlow
             return removedPositions.Count;
         }
 
-        public List<Vector2Int> GetAvailablePixels(PixelColor color)
-        {
-            var result = new List<Vector2Int>();
-            if (!IsBuilt || !IsValidColor(color))
-                return result;
-
-            foreach (int index in availableByColor[(int)color])
-                result.Add(ToPosition(index));
-            return result;
-        }
-
-        public int CopyAvailablePixels(PixelColor color, List<Vector2Int> destination)
-        {
-            if (destination == null)
-                throw new ArgumentNullException(nameof(destination));
-
-            destination.Clear();
-            if (!IsBuilt || !IsValidColor(color))
-                return 0;
-
-            foreach (int index in availableByColor[(int)color])
-                destination.Add(ToPosition(index));
-            return destination.Count;
-        }
-
-        public bool HasAvailablePixel(PixelColor color)
-        {
-            return IsBuilt && IsValidColor(color) && availableByColor[(int)color].Count > 0;
-        }
-
         public bool HasReachableAvailablePixel(PixelColor color)
         {
             if (!IsBuilt || !IsValidColor(color) || pathQueue == null)
@@ -395,7 +377,42 @@ namespace ColonyFlow
 
         public Vector3 GridToLocalPosition(Vector2Int position)
         {
-            return new Vector3(position.x * cellSize, 0f, position.y * cellSize);
+            return gridOrigin + new Vector3(
+                position.x * cellSize, 0f, position.y * cellSize);
+        }
+
+        public Vector3 GridToPathLocalPosition(Vector2Int position,
+            float perimeterOffset)
+        {
+            Vector3 localPosition = GridToLocalPosition(position);
+            float offset = Mathf.Max(0f, perimeterOffset);
+
+            if (position.x < 0)
+                localPosition.x = -offset;
+            else if (position.x >= Size.x)
+                localPosition.x = boardWorldSize + offset;
+
+            if (position.y < 0)
+                localPosition.z = -offset;
+            else if (position.y >= Size.y)
+                localPosition.z = boardWorldSize + offset;
+
+            return localPosition;
+        }
+
+        public Vector2Int LocalToGridPosition(Vector3 localPosition)
+        {
+            return new Vector2Int(
+                Mathf.RoundToInt((localPosition.x - gridOrigin.x) / cellSize),
+                Mathf.RoundToInt((localPosition.z - gridOrigin.z) / cellSize));
+        }
+
+        public bool IsLocalPositionInsideGrid(Vector3 localPosition)
+        {
+            float maxX = gridOrigin.x + (Size.x - 1) * cellSize;
+            float maxZ = gridOrigin.z + (Size.y - 1) * cellSize;
+            return localPosition.x >= gridOrigin.x && localPosition.z >= gridOrigin.z &&
+                   localPosition.x <= maxX && localPosition.z <= maxZ;
         }
 
         public Vector2Int GetBorderEntrance()
@@ -405,8 +422,21 @@ namespace ColonyFlow
 
         public Vector2Int GetClosestBottomBorder(float localX)
         {
-            int x = Mathf.Clamp(Mathf.RoundToInt(localX / cellSize), 0, width - 1);
+            int x = Mathf.Clamp(
+                Mathf.RoundToInt((localX - gridOrigin.x) / cellSize), 0, width - 1);
             return new Vector2Int(x, -1);
+        }
+
+        private void RecalculateGridLayout()
+        {
+            float usableSize = boardWorldSize - contentPadding * 2f;
+            cellSize = usableSize / Mathf.Max(size.x, size.y);
+            float spanX = (size.x - 1) * cellSize;
+            float spanZ = (size.y - 1) * cellSize;
+            gridOrigin = new Vector3(
+                (boardWorldSize - spanX) * 0.5f,
+                0f,
+                (boardWorldSize - spanZ) * 0.5f);
         }
 
         public bool TryBuildPathToTarget(Vector2Int target, List<Vector2Int> result)
@@ -790,7 +820,9 @@ namespace ColonyFlow
 
         private bool ValidateData()
         {
-            if (size.x <= 0 || size.y <= 0 || cellSize <= 0f ||
+            if (size.x <= 0 || size.y <= 0 || boardWorldSize <= 0f ||
+                contentPadding < 0f || contentPadding * 2f >= boardWorldSize ||
+                cellSize <= 0f ||
                 float.IsNaN(cellSize) || float.IsInfinity(cellSize) ||
                 pixels == null || pixels.Count == 0)
             {

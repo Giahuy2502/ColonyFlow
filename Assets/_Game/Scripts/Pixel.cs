@@ -1,17 +1,32 @@
+using System;
 using UnityEngine;
 
 namespace ColonyFlow
 {
-    public enum PixelState { Present, Reserved, Collected }
+    public enum PixelState { Present, Collected }
 
     [DisallowMultipleComponent]
-    public sealed class Pixel : MonoBehaviour
+    public sealed class Pixel : GameUnit
     {
         [SerializeField] private Renderer visual;
+        [Header("Collection Feedback")]
+        [SerializeField, Min(0.01f)] private float collectDuration = 0.2f;
+        [SerializeField, Min(1f)] private float collectPopScale = 1.12f;
+        [SerializeField, Range(0.05f, 0.95f)] private float collectPopPoint = 0.35f;
+        [SerializeField, Min(0f)] private float collectLift = 0.08f;
+        [SerializeField] private Vector3 collectRotationEuler =
+            new Vector3(-18.2455f, -19.032f, 6.5665f);
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
         private MaterialPropertyBlock propertyBlock;
+        private Action<Pixel> collectedCallback;
+        private Vector3 restingScale;
+        private Vector3 collectStartPosition;
+        private Quaternion restingRotation;
+        private Quaternion collectTargetRotation;
+        private float collectTime;
+        private bool isCollecting;
 
         public Vector2Int Position { get; private set; }
         public PixelColor Color { get; private set; }
@@ -28,6 +43,13 @@ namespace ColonyFlow
             Position = position;
             Color = color;
             State = PixelState.Present;
+            isCollecting = false;
+            collectedCallback = null;
+            collectTime = 0f;
+            restingScale = TF.localScale;
+            collectStartPosition = TF.localPosition;
+            restingRotation = TF.localRotation;
+            collectTargetRotation = restingRotation * Quaternion.Euler(collectRotationEuler);
 
             if (visual != null)
             {
@@ -38,20 +60,55 @@ namespace ColonyFlow
                 propertyBlock.SetColor(ColorId, tint);
                 visual.SetPropertyBlock(propertyBlock);
             }
-
-            gameObject.SetActive(true);
         }
 
-        internal void MarkCollected()
+        internal void PlayCollected(Action<Pixel> onCompleted)
         {
             State = PixelState.Collected;
-            gameObject.SetActive(false);
+            collectedCallback = onCompleted;
+            collectStartPosition = TF.localPosition;
+            restingScale = TF.localScale;
+            restingRotation = TF.localRotation;
+            collectTargetRotation = restingRotation * Quaternion.Euler(collectRotationEuler);
+            collectTime = 0f;
+            isCollecting = true;
         }
 
-        internal void SetReserved(bool reserved)
+        internal void PrepareForPool()
         {
-            if (State != PixelState.Collected)
-                State = reserved ? PixelState.Reserved : PixelState.Present;
+            isCollecting = false;
+            collectedCallback = null;
+            State = PixelState.Collected;
+            TF.localPosition = collectStartPosition;
+            TF.localScale = restingScale;
+            TF.localRotation = restingRotation;
+        }
+
+        private void Update()
+        {
+            if (!isCollecting)
+                return;
+
+            collectTime += Time.deltaTime;
+            float progress = Mathf.Clamp01(collectTime / collectDuration);
+            float scaleFactor;
+            if (progress < collectPopPoint)
+                scaleFactor = Mathf.Lerp(1f, collectPopScale, progress / collectPopPoint);
+            else
+                scaleFactor = Mathf.Lerp(collectPopScale, 0f,
+                    (progress - collectPopPoint) / (1f - collectPopPoint));
+
+            TF.localScale = restingScale * scaleFactor;
+            TF.localPosition = collectStartPosition + Vector3.up * (collectLift * progress);
+            TF.localRotation = Quaternion.Slerp(
+                restingRotation, collectTargetRotation, progress);
+            if (progress < 1f)
+                return;
+
+            isCollecting = false;
+            Action<Pixel> callback = collectedCallback;
+            collectedCallback = null;
+            callback?.Invoke(this);
         }
 
     }

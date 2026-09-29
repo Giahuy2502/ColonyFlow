@@ -20,7 +20,6 @@ namespace ColonyFlow
         [SerializeField] private ColonyView view;
 
         public PixelColor Color => color;
-        public int InitialCount => pixelCount;
         public int RemainingCount { get; private set; }
         public int InFlightCount { get; private set; }
         public int UnassignedCount => Mathf.Max(0, RemainingCount - InFlightCount);

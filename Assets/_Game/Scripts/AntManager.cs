@@ -9,6 +9,7 @@ namespace ColonyFlow
         [SerializeField, Min(1)] private int maxActiveAnts = 64;
         [SerializeField, Min(0.01f)] private float spawnInterval = 0.35f;
         [SerializeField, Min(0f)] private float movementHeight;
+        [SerializeField, Min(0f)] private float perimeterPathOffset = 0.057f;
         [SerializeField, Min(0.05f)] private float holeAvoidanceRadiusX = 0.27f;
         [SerializeField, Min(0.05f)] private float holeAvoidanceRadiusZ = 0.18f;
         [SerializeField, Min(0f)] private float holeAvoidancePadding = 0.5f;
@@ -158,8 +159,11 @@ namespace ColonyFlow
 
         private Vector3 ToMovementPosition(Vector2Int gridPosition)
         {
+            float borderOffset = boardRenderer != null
+                ? boardRenderer.BrownPerimeterCenterOffset
+                : perimeterPathOffset;
             Vector3 worldPosition = board.transform.TransformPoint(
-                board.GridToLocalPosition(gridPosition));
+                board.GridToPathLocalPosition(gridPosition, borderOffset));
             Vector3 antLocalPosition = antRoot.InverseTransformPoint(worldPosition);
             antLocalPosition.y = movementHeight;
             return antLocalPosition;
@@ -492,10 +496,9 @@ namespace ColonyFlow
 
         private bool IsOutsideBoard(Vector3 position)
         {
-            float maxX = (board.Size.x - 1) * board.CellSize;
-            float maxZ = (board.Size.y - 1) * board.CellSize;
-            return position.x < 0f || position.z < 0f ||
-                   position.x > maxX || position.z > maxZ;
+            Vector3 worldPosition = antRoot.TransformPoint(position);
+            Vector3 boardLocalPosition = board.transform.InverseTransformPoint(worldPosition);
+            return !board.IsLocalPositionInsideGrid(boardLocalPosition);
         }
 
         private static Vector3 CubicBezier(Vector3 start, Vector3 control1,

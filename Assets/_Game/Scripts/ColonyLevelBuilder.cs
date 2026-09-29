@@ -52,10 +52,11 @@ namespace ColonyFlow
         [SerializeField, Min(0.01f)] private float simulatedTaskInterval = 0.08f;
 
         [Header("Column layout")]
-        [SerializeField, Min(0f)] private float columnSpacing = 0.9f;
+        [SerializeField, Min(0f)] private float columnSpacing = 0.82f;
         [SerializeField] private float columnHeight = 0.35f;
-        [SerializeField] private float columnStartDepth = -3.85f;
-        [SerializeField, Min(0f)] private float columnDepthSpacing = 0.92f;
+        [SerializeField] private float columnStartDepth = -3.65f;
+        [SerializeField, Min(0f)] private float columnDepthSpacing = 0.83f;
+        [SerializeField] private float columnWorldCenterX;
 
         private readonly List<ColonyColumn> columns = new List<ColonyColumn>();
         private readonly List<List<ColonyView>> columnViews = new List<List<ColonyView>>();
@@ -110,7 +111,8 @@ namespace ColonyFlow
                 return false;
             }
 
-            board.Configure(levelData.BoardSize, levelData.CellSize, generatedPixels);
+            board.Configure(levelData.BoardSize, levelData.BoardWorldSize, generatedPixels);
+            AlignColumnsRoot();
             tray.Configure(trayCapacity);
             if (!PrepareTraySlots())
                 return false;
@@ -352,7 +354,7 @@ namespace ColonyFlow
 
         private void CreateColumns()
         {
-            float center = (board.Size.x - 1) * board.CellSize * 0.5f;
+            float center = board.GridCenterLocalX;
             float startX = center - (columnData.Count - 1) * columnSpacing * 0.5f;
 
             for (int columnIndex = 0; columnIndex < columnData.Count; columnIndex++)
@@ -388,6 +390,19 @@ namespace ColonyFlow
             }
         }
 
+        private void AlignColumnsRoot()
+        {
+            if (board == null || coloniesRoot == null)
+                return;
+
+            float localCenterX = board.GridCenterLocalX;
+            Vector3 currentWorldCenter = coloniesRoot.TransformPoint(
+                new Vector3(localCenterX, 0f, 0f));
+            Vector3 rootPosition = coloniesRoot.position;
+            rootPosition.x += columnWorldCenterX - currentWorldCenter.x;
+            coloniesRoot.position = rootPosition;
+        }
+
         private void InitializeViews()
         {
             for (int columnIndex = 0; columnIndex < columnViews.Count; columnIndex++)
@@ -415,7 +430,7 @@ namespace ColonyFlow
 
         private void RefreshColumnPositions(float animationDuration)
         {
-            float center = (board.Size.x - 1) * board.CellSize * 0.5f;
+            float center = board.GridCenterLocalX;
             int activeColumnCount = 0;
             for (int i = 0; i < columns.Count; i++)
                 if (columns[i] != null && columns[i].HasColony)

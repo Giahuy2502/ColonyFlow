@@ -53,7 +53,6 @@ namespace ColonyFlow
         public bool IsPlaying { get; private set; }
         public bool IsPaused { get; private set; }
         public bool CanProcessGameplay => IsPlaying && !IsPaused;
-        public int ActiveTaskCount => activeTasks.Count;
         public int ActiveLevelIndex { get; private set; } = -1;
         public bool HasActiveLevel => ActiveLevelIndex >= 0 && board != null;
         public BoosterManager BoosterManager => boosterManager;

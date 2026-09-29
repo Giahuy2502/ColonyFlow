@@ -79,6 +79,7 @@ namespace ColonyFlow
         {
             bool isLevelVisible = state == GameState.Playing ||
                                   state == GameState.Paused ||
+                                  state == GameState.Completing ||
                                   state == GameState.Victory ||
                                   state == GameState.Failed;
             SetRendererVisible(isLevelVisible);

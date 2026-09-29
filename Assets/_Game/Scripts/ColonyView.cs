@@ -12,9 +12,13 @@ namespace ColonyFlow
         [SerializeField] private TextMeshPro countText;
         [SerializeField] private Collider clickCollider;
         [SerializeField] private Animator animator;
+        [SerializeField] private Transform visualRoot;
         [SerializeField, Min(0.1f)] private float moveSpeed = 8f;
         [SerializeField, Min(0.1f)] private float columnReflowSpeed = 4f;
         [SerializeField, Min(0.01f)] private float disappearDuration = 0.32f;
+        [Header("Feedback")]
+        [SerializeField, Min(0.01f)] private float trayBounceDuration = 0.22f;
+        [SerializeField, Min(1f)] private float trayBounceScale = 1.12f;
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
@@ -24,13 +28,15 @@ namespace ColonyFlow
         private int columnIndex;
         private Vector3 targetLocalPosition;
         private float currentMoveSpeed;
-        private Camera mainCamera;
         private bool activateOnArrival;
         private bool isMoving;
         private bool isDisappearing;
         private float disappearTime;
         private string animName;
         private int displayedCount = -1;
+        private Vector3 visualRestingScale;
+        private float trayBounceTime;
+        private bool isTrayBouncing;
         private static readonly Dictionary<Collider, ColonyView> ClickTargets = new Dictionary<Collider, ColonyView>();
 
         private const string IdleAnim = "Idle";
@@ -42,6 +48,8 @@ namespace ColonyFlow
         private void Awake()
         {
             propertyBlock = new MaterialPropertyBlock();
+            if (visualRoot != null)
+                visualRestingScale = visualRoot.localScale;
         }
 
         private void OnEnable()
@@ -69,12 +77,14 @@ namespace ColonyFlow
             columnIndex = ownerColumn;
             targetLocalPosition = transform.localPosition;
             currentMoveSpeed = moveSpeed;
-            mainCamera = Camera.main;
             isMoving = false;
             isDisappearing = false;
             disappearTime = 0f;
             animName = null;
             displayedCount = -1;
+            isTrayBouncing = false;
+            if (visualRoot != null)
+                visualRoot.localScale = visualRestingScale;
             if (animator != null)
             {
                 animator.Rebind();
@@ -88,23 +98,6 @@ namespace ColonyFlow
             SyncCount();
             colony.CountChanged += RefreshCount;
             colony.StateChanged += OnStateChanged;
-        }
-
-        public void SetTargetLocalPosition(Vector3 position, bool immediate = false)
-        {
-            targetLocalPosition = position;
-            currentMoveSpeed = moveSpeed;
-            if (immediate)
-            {
-                transform.localPosition = position;
-                isMoving = false;
-                ChangeAnim(IdleAnim);
-            }
-            else if ((transform.localPosition - targetLocalPosition).sqrMagnitude > 0.0001f)
-            {
-                isMoving = true;
-                ChangeAnim(MoveAnim);
-            }
         }
 
         public void MoveToColumnPosition(Vector3 position)
@@ -182,6 +175,7 @@ namespace ColonyFlow
         private void Update()
         {
             SyncCount();
+            UpdateFeedback();
 
             if (isDisappearing)
             {
@@ -206,23 +200,12 @@ namespace ColonyFlow
                 if (activateOnArrival)
                 {
                     activateOnArrival = false;
+                    BeginTrayBounce();
                     colony.Activate();
                     levelManager?.ReevaluateProgress();
                 }
             }
         }
-
-        // private void LateUpdate()
-        // {
-        //     if (countText == null)
-        //         return;
-        //     if (mainCamera == null)
-        //         mainCamera = Camera.main;
-        //     if (mainCamera != null)
-        //         countText.transform.rotation = Quaternion.LookRotation(
-        //             countText.transform.position - mainCamera.transform.position,
-        //             mainCamera.transform.up);
-        // }
 
         private void RefreshCount(Colony changed)
         {
@@ -241,6 +224,32 @@ namespace ColonyFlow
 
             displayedCount = currentCount;
             countText.SetText("{0}", currentCount);
+        }
+
+        private void BeginTrayBounce()
+        {
+            if (visualRoot == null)
+                return;
+            trayBounceTime = 0f;
+            isTrayBouncing = true;
+        }
+
+        private void UpdateFeedback()
+        {
+            if (isTrayBouncing && visualRoot != null)
+            {
+                trayBounceTime += Time.deltaTime;
+                float progress = Mathf.Clamp01(trayBounceTime / trayBounceDuration);
+                float wave = Mathf.Sin(progress * Mathf.PI);
+                visualRoot.localScale = visualRestingScale *
+                                        Mathf.Lerp(1f, trayBounceScale, wave);
+                if (progress >= 1f)
+                {
+                    visualRoot.localScale = visualRestingScale;
+                    isTrayBouncing = false;
+                }
+            }
+
         }
 
         private void OnStateChanged(Colony changed, ColonyState state)

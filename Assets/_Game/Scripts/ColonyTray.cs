@@ -13,11 +13,11 @@ namespace ColonyFlow
         [Header("Layout")]
         [SerializeField] private List<Transform> slotObjects = new List<Transform>();
         [SerializeField, Min(0f)] private float slotSpacing = 0.9f;
-        [SerializeField] private float slotCenterX = 2.09f;
-        [SerializeField] private Vector3 slotScale = new Vector3(0.8f, 0.12f, 0.8f);
+        [SerializeField] private float slotCenterX = 2.1f;
+        [SerializeField] private Vector3 slotScale = new Vector3(0.72f, 0.12f, 0.72f);
         [SerializeField] private float slotHeight;
-        [SerializeField] private float depth = -2.65f;
-        [SerializeField] private float colonyHeight = 0.35f;
+        [SerializeField] private float depth = -2.4f;
+        [SerializeField] private float colonyHeight = 0.31f;
 
         [Header("Expansion")]
         [SerializeField, Min(1)] private int expansionAmount = 1;
@@ -40,7 +40,6 @@ namespace ColonyFlow
         public float SlotPopOvershoot => slotPopOvershoot;
         public int OccupiedCount { get; private set; }
         public bool HasFreeSlot => OccupiedCount < capacity;
-        public bool IsFull => OccupiedCount >= capacity;
 
         public event Action<int, Colony> ColonyAdded;
         public event Action<int, Colony> ColonyRemoved;

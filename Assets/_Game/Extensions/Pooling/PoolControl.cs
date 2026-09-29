@@ -27,4 +27,5 @@ public class PoolAmount
 public enum PoolType
 {
         Ant = 100,
+        Pixel = 200,
 }

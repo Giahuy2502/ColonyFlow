@@ -1,6 +1,4 @@
-using System.Collections;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class SimplePool : MonoBehaviour
@@ -55,15 +53,6 @@ public class SimplePool : MonoBehaviour
         poolInstance[poolType].Collect();
     }
 
-    // thu thap tat ca phan tu
-    public static void CollectAll()
-    {
-        foreach (var item in poolInstance.Values)
-        {
-            item.Collect();
-        }
-    }
-
     // destroy 1 pool
     public static void Release(PoolType poolType)
     {
@@ -74,15 +63,6 @@ public class SimplePool : MonoBehaviour
         poolInstance[poolType].Release();
     }
     
-    // destroy tat ca pool
-    public static void ReleaseAll(PoolType poolType)
-    {
-        foreach (var item in poolInstance.Values)
-        {
-            item.Release();
-        }
-        poolInstance[poolType].Release();
-    }
 }
 
 public class Pool

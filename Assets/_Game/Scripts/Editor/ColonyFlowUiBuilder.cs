@@ -296,7 +296,7 @@ namespace ColonyFlow.Editor
             text.fontStyle = FontStyles.Bold;
             text.color = color;
             text.alignment = TextAlignmentOptions.Center;
-            text.enableWordWrapping = false;
+            text.textWrappingMode = TextWrappingModes.NoWrap;
             text.raycastTarget = false;
             return text;
         }

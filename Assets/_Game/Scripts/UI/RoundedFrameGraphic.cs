@@ -67,14 +67,6 @@ namespace ColonyFlow
                 direction.y >= 0f ? rect.yMax - radius : rect.yMin + radius);
         }
 
-        private void AddVertex(VertexHelper vh)
-        {
-            UIVertex vertex = UIVertex.simpleVert;
-            vertex.color = color;
-            vertex.position = Vector3.zero;
-            vh.AddVert(vertex);
-        }
-
         private void AddVertex(VertexHelper vh, Vector2 position)
         {
             UIVertex vertex = UIVertex.simpleVert;

@@ -30,7 +30,7 @@ namespace ColonyFlow
         [SerializeField] private List<string> customRows = new List<string>();
 
         public Vector2Int BoardSize => new Vector2Int(width, height);
-        public float CellSize => boardWorldSize / Mathf.Max(width, height);
+        public float BoardWorldSize => boardWorldSize;
         public int TrayCapacity => trayCapacity;
 
         public void BuildPixels(List<PixelData> destination)
@@ -76,18 +76,141 @@ namespace ColonyFlow
                 ? new[] { PixelColor.Green, PixelColor.Red, PixelColor.Purple }
                 : (PixelColor[])Enum.GetValues(typeof(PixelColor));
 
-            int nextColumn = 0;
+            var generatedColonies = new List<ColonySpec>();
             foreach (PixelColor color in order)
             {
                 if (!counts.TryGetValue(color, out int remaining))
                     continue;
-                while (remaining > 0)
+
+                int targetQuota = Mathf.Max(1,
+                    Mathf.RoundToInt(maxColonyQuota * 0.85f));
+                int colonyCount = remaining <= maxColonyQuota
+                    ? 1
+                    : Mathf.Max(
+                        Mathf.CeilToInt(remaining / (float)targetQuota),
+                        Mathf.CeilToInt(remaining / (float)maxColonyQuota));
+                int variation = Mathf.Max(1, maxColonyQuota / 8);
+                int previousQuota = -1;
+
+                for (int colonyIndex = 0; colonyIndex < colonyCount; colonyIndex++)
                 {
-                    int quota = Mathf.Min(maxColonyQuota, remaining);
-                    destination[nextColumn].colonies.Add(new ColonySpec(color, quota));
+                    int slotsLeft = colonyCount - colonyIndex;
+                    int average = Mathf.RoundToInt(remaining / (float)slotsLeft);
+                    int phase = PositiveModulo(
+                        seed + (int)color * 3 + colonyIndex, 7);
+                    int desired = average + GetQuotaVariation(phase, variation);
+                    int minimum = Mathf.Max(1,
+                        remaining - maxColonyQuota * (slotsLeft - 1));
+                    int maximum = Mathf.Min(maxColonyQuota,
+                        remaining - (slotsLeft - 1));
+                    int quota = Mathf.Clamp(desired, minimum, maximum);
+
+                    if (quota == previousQuota)
+                    {
+                        if (quota < maximum)
+                            quota++;
+                        else if (quota > minimum)
+                            quota--;
+                    }
+
+                    generatedColonies.Add(new ColonySpec(color, quota));
+                    previousQuota = quota;
                     remaining -= quota;
-                    nextColumn = (nextColumn + 1) % columnCount;
                 }
+            }
+
+            DistributeColonies(generatedColonies, destination);
+        }
+
+        private void DistributeColonies(List<ColonySpec> source,
+            List<ColonyColumnSpec> destination)
+        {
+            int colorCount = Enum.GetValues(typeof(PixelColor)).Length;
+            var coloniesByColor = new List<ColonySpec>[colorCount];
+            var nextByColor = new int[colorCount];
+            for (int i = 0; i < colorCount; i++)
+                coloniesByColor[i] = new List<ColonySpec>();
+            for (int i = 0; i < source.Count; i++)
+                coloniesByColor[(int)source[i].color].Add(source[i]);
+
+            ColonySpec previousHorizontal = null;
+            for (int placement = 0; placement < source.Count; placement++)
+            {
+                int columnIndex = placement % destination.Count;
+                if (columnIndex == 0)
+                    previousHorizontal = null;
+
+                List<ColonySpec> column = destination[columnIndex].colonies;
+                ColonySpec previousVertical = column.Count > 0
+                    ? column[column.Count - 1]
+                    : null;
+                int selectedColor = SelectNextColonyColor(
+                    coloniesByColor, nextByColor, previousVertical,
+                    previousHorizontal, placement);
+                ColonySpec selected = coloniesByColor[selectedColor][nextByColor[selectedColor]++];
+                column.Add(selected);
+                previousHorizontal = selected;
+            }
+        }
+
+        private int SelectNextColonyColor(List<ColonySpec>[] coloniesByColor,
+            int[] nextByColor, ColonySpec previousVertical,
+            ColonySpec previousHorizontal, int placement)
+        {
+            int colorCount = coloniesByColor.Length;
+            int scanStart = PositiveModulo(seed + placement * 3, colorCount);
+
+            // First avoid matching both neighbours. If impossible, relax the
+            // horizontal rule before allowing a vertical same-color stack.
+            for (int relaxation = 0; relaxation < 3; relaxation++)
+            {
+                int selectedColor = -1;
+                int bestScore = int.MinValue;
+                for (int offset = 0; offset < colorCount; offset++)
+                {
+                    int colorIndex = (scanStart + offset) % colorCount;
+                    List<ColonySpec> colonies = coloniesByColor[colorIndex];
+                    int remaining = colonies.Count - nextByColor[colorIndex];
+                    if (remaining <= 0)
+                        continue;
+                    if (relaxation < 2 && previousVertical != null &&
+                        (int)previousVertical.color == colorIndex)
+                        continue;
+                    if (relaxation < 1 && previousHorizontal != null &&
+                        (int)previousHorizontal.color == colorIndex)
+                        continue;
+
+                    ColonySpec candidate = colonies[nextByColor[colorIndex]];
+                    int score = remaining * 100;
+                    if (previousVertical == null || candidate.count != previousVertical.count)
+                        score += 10;
+                    if (previousHorizontal == null || candidate.count != previousHorizontal.count)
+                        score += 5;
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        selectedColor = colorIndex;
+                    }
+                }
+
+                if (selectedColor >= 0)
+                    return selectedColor;
+            }
+
+            throw new InvalidOperationException("No colony is available for distribution.");
+        }
+
+        private static int GetQuotaVariation(int phase, int amount)
+        {
+            switch (phase)
+            {
+                case 0: return -amount;
+                case 1: return amount;
+                case 2: return -Mathf.Max(1, amount / 2);
+                case 3: return Mathf.Max(1, amount / 2);
+                case 4: return -Mathf.Max(1, amount - 1);
+                case 5: return Mathf.Max(1, amount - 1);
+                default: return 0;
             }
         }
 

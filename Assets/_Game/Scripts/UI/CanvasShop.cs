@@ -14,10 +14,5 @@ namespace ColonyFlow
             if (statusText != null)
                 statusText.text = "Coming Soon";
         }
-
-        public void BackButton()
-        {
-            Close(0f);
-        }
     }
 }

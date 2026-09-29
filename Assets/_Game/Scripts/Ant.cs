@@ -23,6 +23,9 @@ namespace ColonyFlow
         [SerializeField, Range(0.1f, 1.5f)]
         [Tooltip("Visual size of the carried pixel relative to a board pixel in the current map.")]
         private float carriedPixelSizeMultiplier = 0.9f;
+        [SerializeField, Min(0.01f)] private float carriedPixelPopDuration = 0.18f;
+        [SerializeField, Min(1f)] private float carriedPixelPopScale = 1.12f;
+        [SerializeField, Range(0.05f, 0.95f)] private float carriedPixelPopPoint = 0.65f;
         [SerializeField] private Animator animator;
         [SerializeField, Min(0.05f)] private float eatDuration = 0.28f;
         [SerializeField, Min(0.05f)] private float jumpDuration = 0.42f;
@@ -40,6 +43,9 @@ namespace ColonyFlow
         private Vector3 jumpTarget;
         private Vector3 eatLookTarget;
         private string animName;
+        private Vector3 carriedPixelTargetScale;
+        private float carriedPixelPopTime;
+        private bool carriedPixelPopping;
 
         private const string MoveAnim = "Move";
         private const string EatAnim = "Eat";
@@ -72,7 +78,7 @@ namespace ColonyFlow
             task = assignedTask;
             movementPlaneY = startLocalPosition.y;
             startLocalPosition.y = movementPlaneY;
-            transform.localPosition = startLocalPosition;
+            TF.localPosition = startLocalPosition;
             targetCenter.y = movementPlaneY;
             eatLookTarget = targetCenter;
             CopyRoute(outboundRoute);
@@ -103,6 +109,7 @@ namespace ColonyFlow
             task = default;
             eatLookTarget = Vector3.zero;
             State = AntState.Pooled;
+            carriedPixelPopping = false;
             SetCarriedPixelVisible(false);
             if (animator != null)
             {
@@ -117,6 +124,8 @@ namespace ColonyFlow
         {
             if (State == AntState.Pooled)
                 return;
+
+            UpdateCarriedPixelPop();
 
             if (State == AntState.Eating)
             {
@@ -143,9 +152,9 @@ namespace ColonyFlow
                 return;
             }
 
-            Vector3 position = transform.localPosition;
+            Vector3 position = TF.localPosition;
             position.y = movementPlaneY;
-            transform.localPosition = position;
+            TF.localPosition = position;
             float remainingDistance = moveSpeed * Time.deltaTime;
             Vector3 finalStepDirection = Vector3.zero;
 
@@ -153,18 +162,18 @@ namespace ColonyFlow
             {
                 Vector3 destination = route[waypointIndex];
                 destination.y = movementPlaneY;
-                Vector3 offset = destination - transform.localPosition;
+                Vector3 offset = destination - TF.localPosition;
                 float distance = offset.magnitude;
                 if (distance <= 0.0001f)
                 {
-                    transform.localPosition = destination;
+                    TF.localPosition = destination;
                     waypointIndex++;
                     continue;
                 }
 
                 float step = Mathf.Min(remainingDistance, distance);
                 Vector3 stepDirection = offset / distance;
-                transform.localPosition += stepDirection * step;
+                TF.localPosition += stepDirection * step;
                 finalStepDirection = stepDirection;
                 remainingDistance -= step;
                 if (step >= distance - 0.0001f)
@@ -174,7 +183,7 @@ namespace ColonyFlow
             // The route already contains the turn arc. Following its final tangent
             // directly avoids adding a second, delayed rotation on tight corners.
             if (finalStepDirection.sqrMagnitude > 0.0001f)
-                transform.localRotation = Quaternion.LookRotation(
+                TF.localRotation = Quaternion.LookRotation(
                     finalStepDirection, Vector3.up);
 
             if (waypointIndex >= route.Count)
@@ -191,10 +200,10 @@ namespace ColonyFlow
 
         private void BeginEat()
         {
-            Vector3 direction = eatLookTarget - transform.localPosition;
+            Vector3 direction = eatLookTarget - TF.localPosition;
             direction.y = 0f;
             if (direction.sqrMagnitude > 0.0001f)
-                transform.localRotation = Quaternion.LookRotation(
+                TF.localRotation = Quaternion.LookRotation(
                     direction.normalized, Vector3.up);
 
             State = AntState.Eating;
@@ -208,11 +217,11 @@ namespace ColonyFlow
             State = AntState.Jumping;
             actionTime = 0f;
             SoundManager.Instance?.PlaySfx(SfxId.AntJump);
-            jumpStart = transform.localPosition;
+            jumpStart = TF.localPosition;
             Vector3 direction = jumpTarget - jumpStart;
             direction.y = 0f;
             if (direction.sqrMagnitude > 0.0001f)
-                transform.localRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+                TF.localRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
             ChangeAnim(JumpAnim);
         }
 
@@ -222,7 +231,7 @@ namespace ColonyFlow
             float progress = Mathf.Clamp01(actionTime / jumpDuration);
             Vector3 position = Vector3.Lerp(jumpStart, jumpTarget, progress);
             position.y += 4f * jumpHeight * progress * (1f - progress);
-            transform.localPosition = position;
+            TF.localPosition = position;
             if (progress < 1f)
                 return;
 
@@ -279,8 +288,15 @@ namespace ColonyFlow
 
         private void SetCarriedPixelVisible(bool visible)
         {
-            if (carriedPixelVisual != null && carriedPixelVisual.activeSelf != visible)
+            if (carriedPixelVisual == null)
+                return;
+            if (carriedPixelVisual.activeSelf != visible)
                 carriedPixelVisual.SetActive(visible);
+            carriedPixelPopping = visible;
+            carriedPixelPopTime = 0f;
+            carriedPixelVisual.transform.localScale = visible
+                ? Vector3.zero
+                : carriedPixelTargetScale;
         }
 
         private void SetCarriedPixelWorldScale(Vector3 worldScale)
@@ -292,10 +308,26 @@ namespace ColonyFlow
             Transform carriedTransform = carriedPixelVisual.transform;
             Transform parent = carriedTransform.parent;
             Vector3 parentScale = parent != null ? parent.lossyScale : Vector3.one;
-            carriedTransform.localScale = new Vector3(
+            carriedPixelTargetScale = new Vector3(
                 SafeScaleDivision(worldScale.x, parentScale.x),
                 SafeScaleDivision(worldScale.y, parentScale.y),
                 SafeScaleDivision(worldScale.z, parentScale.z));
+            carriedTransform.localScale = carriedPixelTargetScale;
+        }
+
+        private void UpdateCarriedPixelPop()
+        {
+            if (!carriedPixelPopping || carriedPixelVisual == null)
+                return;
+            carriedPixelPopTime += Time.deltaTime;
+            float progress = Mathf.Clamp01(carriedPixelPopTime / carriedPixelPopDuration);
+            float scale = progress < carriedPixelPopPoint
+                ? Mathf.Lerp(0f, carriedPixelPopScale, progress / carriedPixelPopPoint)
+                : Mathf.Lerp(carriedPixelPopScale, 1f,
+                    (progress - carriedPixelPopPoint) / (1f - carriedPixelPopPoint));
+            carriedPixelVisual.transform.localScale = carriedPixelTargetScale * scale;
+            if (progress >= 1f)
+                carriedPixelPopping = false;
         }
 
         private static float SafeScaleDivision(float worldScale, float parentScale)

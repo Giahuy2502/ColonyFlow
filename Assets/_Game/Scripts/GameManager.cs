@@ -10,6 +10,7 @@ namespace ColonyFlow
         MainMenu,
         Playing,
         Paused,
+        Completing,
         Victory,
         Failed
     }
@@ -26,10 +27,14 @@ namespace ColonyFlow
         [Header("Gameplay Speed")]
         [SerializeField, Min(0.01f)] private float normalTimeScale = 1f;
         [SerializeField, Min(0.01f)] private float doubleTimeScale = 2f;
+        [Header("Victory Presentation")]
+        [SerializeField] private GameplayFeedback gameplayFeedback;
+        [SerializeField, Min(0.01f)] private float fallbackCelebrationDuration = 0.6f;
 
         private bool doubleSpeed;
         private bool autoDoubleSpeed;
         private Coroutine loadRoutine;
+        private Coroutine completionRoutine;
 
         public GameState State { get; private set; } = GameState.Loading;
         public int DisplayLevelNumber
@@ -45,7 +50,6 @@ namespace ColonyFlow
             }
         }
         public bool IsDoubleSpeed => doubleSpeed;
-        public bool IsAutoDoubleSpeed => autoDoubleSpeed;
 
         public event Action<GameState> StateChanged;
         public event Action SpeedChanged;
@@ -59,6 +63,8 @@ namespace ColonyFlow
                 dataManager = DataManager.Instance;
             if (levelManager == null)
                 levelManager = LevelManager.Instance;
+            if (gameplayFeedback == null)
+                gameplayFeedback = GameplayFeedback.Instance;
         }
 
         private void Start()
@@ -77,6 +83,7 @@ namespace ColonyFlow
 
         protected override void OnDestroy()
         {
+            CancelCompletionPresentation();
             if (levelManager != null)
             {
                 levelManager.LevelCompleted -= OnLevelCompleted;
@@ -120,6 +127,10 @@ namespace ColonyFlow
 
         public void OpenSettings()
         {
+            if (State != GameState.MainMenu &&
+                State != GameState.Playing &&
+                State != GameState.Paused)
+                return;
             if (State == GameState.Playing)
                 PauseGame();
             UIManager.Instance?.Open<CanvasSettings>();
@@ -169,6 +180,8 @@ namespace ColonyFlow
         {
             if (loadRoutine != null)
                 return;
+
+            CancelCompletionPresentation();
 
             ColonyLevelData data = dataManager.GetLevel(levelIndex);
             if (data == null)
@@ -223,17 +236,13 @@ namespace ColonyFlow
             Time.timeScale = normalTimeScale;
             if (result == LevelResult.Victory)
             {
-                SoundManager.Instance?.StopMusic(0.25f);
-                SoundManager.Instance?.PlaySfx(SfxId.Victory);
-                int nextIndex = Mathf.Min(
-                    levelManager.ActiveLevelIndex + 1, dataManager.LevelCount - 1);
-                dataManager.UnlockLevel(nextIndex);
-                dataManager.SetCurrentLevel(nextIndex);
-                SetState(GameState.Victory);
-                UIManager.Instance?.Open<CanvasVictory>();
+                SetState(GameState.Completing);
+                completionRoutine = StartCoroutine(CompleteVictoryPresentation());
             }
             else
             {
+                if (gameplayFeedback != null)
+                    gameplayFeedback.ResetFeedback();
                 SoundManager.Instance?.StopMusic(0.25f);
                 SoundManager.Instance?.PlaySfx(SfxId.Failed);
                 SetState(GameState.Failed);
@@ -241,8 +250,46 @@ namespace ColonyFlow
             }
         }
 
+        private IEnumerator CompleteVictoryPresentation()
+        {
+            if (gameplayFeedback == null)
+                gameplayFeedback = GameplayFeedback.Instance;
+            gameplayFeedback?.PlayVictoryCelebration();
+            float duration = gameplayFeedback != null
+                ? gameplayFeedback.VictoryDuration
+                : fallbackCelebrationDuration;
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            SoundManager.Instance?.StopMusic(0.25f);
+            SoundManager.Instance?.PlaySfx(SfxId.Victory);
+            int nextIndex = Mathf.Min(
+                levelManager.ActiveLevelIndex + 1, dataManager.LevelCount - 1);
+            dataManager.UnlockLevel(nextIndex);
+            dataManager.SetCurrentLevel(nextIndex);
+            SetState(GameState.Victory);
+            UIManager.Instance?.Open<CanvasVictory>();
+            completionRoutine = null;
+        }
+
+        private void CancelCompletionPresentation()
+        {
+            if (completionRoutine != null)
+            {
+                StopCoroutine(completionRoutine);
+                completionRoutine = null;
+            }
+            if (gameplayFeedback != null)
+                gameplayFeedback.ResetFeedback();
+        }
+
         private void EnterMainMenu()
         {
+            CancelCompletionPresentation();
             SetSpeedMode(false, false);
             Time.timeScale = 0f;
             UIManager.Instance?.CloseAll();
@@ -261,6 +308,7 @@ namespace ColonyFlow
         private void OnColumnsEmptied()
         {
             SetSpeedMode(true, true);
+            UIManager.Instance?.Close<CanvasGamePlay>();
         }
 
         private void SetSpeedMode(bool useDoubleSpeed, bool automatic)

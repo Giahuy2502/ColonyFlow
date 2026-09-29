@@ -4,14 +4,6 @@ using UnityEngine;
 
 namespace ColonyFlow
 {
-    public enum BoosterType : byte
-    {
-        AddTray,
-        ShuffleColonies,
-        PickHiddenColony,
-        RemoveColor
-    }
-
     public enum BoosterTargetMode : byte
     {
         None,
@@ -205,9 +197,7 @@ namespace ColonyFlow
                 return false;
 
             Vector3 local = board.transform.InverseTransformPoint(ray.GetPoint(distance));
-            var position = new Vector2Int(
-                Mathf.RoundToInt(local.x / board.CellSize),
-                Mathf.RoundToInt(local.z / board.CellSize));
+            Vector2Int position = board.LocalToGridPosition(local);
             if (!board.TryGetCell(position, out PixelCell cell) || !cell.IsOccupied)
                 return false;
 

@@ -81,6 +81,9 @@ MonoBehaviour:
   carriedPixelVisual: {fileID: 2000}
   carriedPixelRenderer: {fileID: 2003}
   carriedPixelSizeMultiplier: 0.7
+  carriedPixelPopDuration: 0.18
+  carriedPixelPopScale: 1.12
+  carriedPixelPopPoint: 0.65
   animator: {fileID: 6327883995191573865}
   eatDuration: 0.5
   jumpDuration: 0.42

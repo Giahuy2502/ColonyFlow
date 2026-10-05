@@ -28,4 +28,5 @@ public enum PoolType
 {
         Ant = 100,
         Pixel = 200,
+        VictoryStar = 300,
 }

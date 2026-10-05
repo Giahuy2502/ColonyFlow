@@ -5,32 +5,25 @@ namespace ColonyFlow
     [DisallowMultipleComponent]
     public sealed class GameplayFeedback : MonoBehaviour
     {
-        [SerializeField] private Transform boardVisualRoot;
+        [SerializeField] private Animator animator;
+        [SerializeField] private AnimationClip victoryAnimationClip;
         [SerializeField] private Transform victoryConfettiRoot;
         [SerializeField] private ParticleSystem victoryConfetti;
-        [Header("Victory")]
-        [SerializeField, Min(0.01f)] private float boardPulseDuration = 0.6f;
-        [SerializeField, Min(1f)] private float boardPulseScale = 1.045f;
-        [SerializeField, Min(0)] private int victoryConfettiCount = 80;
-        [SerializeField, Min(0.01f)] private float victoryParticleLifetime = 0.6f;
-        [SerializeField, Min(0f)] private float victoryParticleSpeed = 1.8f;
-        [SerializeField, Min(0.001f)] private float victoryParticleSize = 0.06f;
-        [SerializeField, Min(0f)] private float victoryParticleGravity = 0.55f;
-        [SerializeField] private Vector3 victoryEmitterSize = new Vector3(4f, 0.1f, 0.25f);
 
-        private Vector3 boardRestingScale;
-        private float pulseTime;
-        private bool isPulsing;
+        private const string IdleAnim = "Idle";
+        private const string VictoryAnim = "Victory";
+        private const float FallbackVictoryDuration = 0.6f;
+        private string animName;
 
         public static GameplayFeedback Instance { get; private set; }
-        public float VictoryDuration => boardPulseDuration;
+        public float VictoryDuration => victoryAnimationClip != null
+            ? victoryAnimationClip.length
+            : FallbackVictoryDuration;
 
         private void Awake()
         {
             Instance = this;
             EnsureVictoryConfetti();
-            if (boardVisualRoot != null)
-                boardRestingScale = boardVisualRoot.localScale;
         }
 
         private void OnDestroy()
@@ -39,75 +32,43 @@ namespace ColonyFlow
                 Instance = null;
         }
 
-        private void Update()
-        {
-            if (!isPulsing || boardVisualRoot == null)
-                return;
-
-            pulseTime += Time.unscaledDeltaTime;
-            float progress = Mathf.Clamp01(pulseTime / boardPulseDuration);
-            float wave = Mathf.Sin(progress * Mathf.PI);
-            boardVisualRoot.localScale = boardRestingScale * Mathf.Lerp(1f, boardPulseScale, wave);
-            if (progress < 1f)
-                return;
-
-            boardVisualRoot.localScale = boardRestingScale;
-            isPulsing = false;
-        }
-
         public void PlayVictoryCelebration()
         {
             ResetFeedback();
-            if (boardVisualRoot != null)
-            {
-                boardRestingScale = boardVisualRoot.localScale;
-                isPulsing = true;
-            }
+            ChangeAnim(VictoryAnim);
             if (victoryConfetti != null)
-            {
                 victoryConfetti.Play(true);
-                if (victoryConfettiCount > 0)
-                    victoryConfetti.Emit(victoryConfettiCount);
-            }
         }
 
         public void ResetFeedback()
         {
-            isPulsing = false;
-            pulseTime = 0f;
-            if (boardVisualRoot != null && boardRestingScale != Vector3.zero)
-                boardVisualRoot.localScale = boardRestingScale;
+            if (animator != null)
+            {
+                animator.Rebind();
+                animator.Update(0f);
+            }
+            animName = null;
+            ChangeAnim(IdleAnim);
             if (victoryConfetti != null)
                 victoryConfetti.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
+        private void ChangeAnim(string anim)
+        {
+            if (animator == null || string.IsNullOrEmpty(anim) || animName == anim)
+                return;
+
+            if (!string.IsNullOrEmpty(animName))
+                animator.ResetTrigger(animName);
+
+            animName = anim;
+            animator.SetTrigger(animName);
         }
 
         private void EnsureVictoryConfetti()
         {
             if (victoryConfetti == null && victoryConfettiRoot != null)
-            {
                 victoryConfetti = victoryConfettiRoot.GetComponent<ParticleSystem>();
-                if (victoryConfetti == null)
-                    victoryConfetti = victoryConfettiRoot.gameObject.AddComponent<ParticleSystem>();
-            }
-
-            if (victoryConfetti != null)
-            {
-                var main = victoryConfetti.main;
-                main.playOnAwake = false;
-                main.loop = false;
-                main.simulationSpace = ParticleSystemSimulationSpace.World;
-                main.maxParticles = Mathf.Max(victoryConfettiCount, 1);
-                main.startLifetime = victoryParticleLifetime;
-                main.startSpeed = victoryParticleSpeed;
-                main.startSize = victoryParticleSize;
-                main.gravityModifier = victoryParticleGravity;
-                var emission = victoryConfetti.emission;
-                emission.enabled = false;
-                var shape = victoryConfetti.shape;
-                shape.enabled = true;
-                shape.shapeType = ParticleSystemShapeType.Box;
-                shape.scale = victoryEmitterSize;
-            }
         }
     }
 }

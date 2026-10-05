@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 115a14d2708f0fc4fad6e1c98f98d549
+guid: 8301ec78ad51d564dbb4629e1eb185d6
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -8684004658249909862
-    second: shufflebutton_0
+      213: 3855367965986954621
+    second: clan_icon_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -152,13 +152,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: shufflebutton_0
+      name: clan_icon_0
       rect:
         serializedVersion: 2
-        x: 78
-        y: 76
-        width: 1101
-        height: 1105
+        x: 135
+        y: 95
+        width: 1017
+        height: 1052
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -167,8 +167,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: a993d2de5c73c7780800000000000000
-      internalID: -8684004658249909862
+      spriteID: d7d921b0db4018530800000000000000
+      internalID: 3855367965986954621
       vertices: []
       indices: 
       edges: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 2ed3cb2043ef4a64eaaf327634030706
+    spriteID: 746ee9eb2f3ac1f4296f03937c3b8ded
     internalID: 0
     vertices: []
     indices: 
@@ -187,7 +187,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      shufflebutton_0: -8684004658249909862
+      clan_icon_0: 3855367965986954621
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

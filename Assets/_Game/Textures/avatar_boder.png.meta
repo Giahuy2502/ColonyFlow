@@ -155,12 +155,12 @@ TextureImporter:
       name: avatar_boder_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 1254
-        height: 1254
+        x: 101
+        y: 113
+        width: 1051
+        height: 1025
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 035483147e9713a4681799fa41ba6384
     internalID: 0
     vertices: []
     indices: 

@@ -1697,7 +1697,7 @@ MonoBehaviour:
   dataManager: {fileID: 744969649}
   levelManager: {fileID: 45601132}
   useInspectorLevel: 1
-  inspectorLevelNumber: 4
+  inspectorLevelNumber: 1
   normalTimeScale: 1
   doubleTimeScale: 2
   gameplayFeedback: {fileID: 2200000003}

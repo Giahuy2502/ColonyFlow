@@ -155,12 +155,12 @@ TextureImporter:
       name: clearcolorbutton_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 1254
-        height: 1254
+        x: 41
+        y: 60
+        width: 1170
+        height: 1146
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 2ef44a4986fbfbd4e99e3fcc7c424d67
     internalID: 0
     vertices: []
     indices: 

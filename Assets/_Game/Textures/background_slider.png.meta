@@ -155,13 +155,13 @@ TextureImporter:
       name: background_slider_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 2172
-        height: 724
+        x: 29
+        y: 215
+        width: 2113
+        height: 311
       alignment: 0
-      pivot: {x: 0, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 1053, y: 0, z: 1055, w: 0}
       customData: 
       outline: []
       physicsShape: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 44ef827aaafb19740b13c1c62dd9c92b
     internalID: 0
     vertices: []
     indices: 

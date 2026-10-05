@@ -5,12 +5,15 @@ namespace ColonyFlow
 {
     public sealed class CanvasMainMenu : UICanvas
     {
-        [SerializeField] private TextMeshProUGUI goldText;
+        [SerializeField] private TextMeshProUGUI levelText;
 
         public override void Setup()
         {
-            if (goldText != null && GameManager.Instance != null)
-                goldText.text = $"Level {GameManager.Instance.DisplayLevelNumber}";
+            if (levelText != null && GameManager.Instance != null)
+            {
+                levelText.text =GameManager.Instance.DisplayLevelNumber.ToString();
+            }
+                
         }
 
         public void PlayButton()

@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 115a14d2708f0fc4fad6e1c98f98d549
+guid: f46a93450d1f4a545ae5d4ef7d553ed0
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -8684004658249909862
-    second: shufflebutton_0
+      213: -7717929754467112521
+    second: bottomHUD_mainmenu_01_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -152,23 +152,23 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: shufflebutton_0
+      name: bottomHUD_mainmenu_01_0
       rect:
         serializedVersion: 2
-        x: 78
-        y: 76
-        width: 1101
-        height: 1105
+        x: 21
+        y: 173
+        width: 2072
+        height: 395
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
+      border: {x: 1031, y: 0, z: 1028, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: a993d2de5c73c7780800000000000000
-      internalID: -8684004658249909862
+      spriteID: 7b9e19797c764e490800000000000000
+      internalID: -7717929754467112521
       vertices: []
       indices: 
       edges: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 2ed3cb2043ef4a64eaaf327634030706
+    spriteID: 7320b4748d048e94caac00ef97994bb0
     internalID: 0
     vertices: []
     indices: 
@@ -187,7 +187,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      shufflebutton_0: -8684004658249909862
+      bottomHUD_mainmenu_01_0: -7717929754467112521
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -155,12 +155,12 @@ TextureImporter:
       name: icon_coin_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 1283
-        height: 1226
+        x: 144
+        y: 111
+        width: 990
+        height: 982
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 83090ef681e38c94d81e2ff00e1a6fb0
     internalID: 0
     vertices: []
     indices: 

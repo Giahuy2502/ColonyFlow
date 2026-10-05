@@ -15,9 +15,7 @@ MonoBehaviour:
   width: 35
   height: 35
   boardWorldSize: 4.4
-  pattern: 5
   seed: 404
-  trayCapacity: 5
   columnCount: 5
   maxColonyQuota: 32
   customColorLegend:

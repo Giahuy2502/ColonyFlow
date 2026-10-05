@@ -20,11 +20,11 @@ RenderSettings:
   m_FogDensity: 0.01
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
-  m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
-  m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
+  m_AmbientSkyColor: {r: 0.6132076, g: 0.6132076, b: 0.6132076, a: 1}
+  m_AmbientEquatorColor: {r: 0.5283019, g: 0.5283019, b: 0.5283019, a: 1}
+  m_AmbientGroundColor: {r: 0.5188679, g: 0.5188679, b: 0.5188679, a: 1}
   m_AmbientIntensity: 1
-  m_AmbientMode: 0
+  m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
   m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
   m_HaloStrength: 0.5
@@ -243,7 +243,7 @@ MonoBehaviour:
   colorPalette: {fileID: 11400000, guid: 52a719d99e4a4ae8bd880a2a9fc2ee80, type: 2}
   pixelMaterial: {fileID: 2100000, guid: bb530838e84149398ff5afaf4a876be1, type: 2}
   pixelScale: {x: 1, y: 1, z: 1}
-  pixelTopFaceCompensation: 1.12
+  pixelTopFaceCompensation: 1.08
   frameInnerSize: {x: 4.4, y: 4.4}
   frameCellSize: 0.176
   borderWidth: 0.52
@@ -994,7 +994,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 4.5
+  orthographic size: 4.15
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -1160,13 +1160,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.26668975, y: 0.54232717, z: -0.18673815, w: 0.77452356}
+  m_LocalRotation: {x: 0.24095121, y: -0.541657, z: 0.16560116, w: 0.7881158}
   m_LocalPosition: {x: 0, y: 3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 38, y: 70, z: 0}
+  m_LocalEulerAnglesHint: {x: 34, y: -69, z: 0}
 --- !u!114 &410087042
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1697,7 +1697,7 @@ MonoBehaviour:
   dataManager: {fileID: 744969649}
   levelManager: {fileID: 45601132}
   useInspectorLevel: 1
-  inspectorLevelNumber: 1
+  inspectorLevelNumber: 4
   normalTimeScale: 1
   doubleTimeScale: 2
   gameplayFeedback: {fileID: 2200000003}
@@ -1874,7 +1874,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0ee98843cf60442f9fcc933a5db1a468, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  capacity: 5
+  startingCapacity: 5
   slotObjects:
   - {fileID: 2001000011}
   - {fileID: 2001000021}
@@ -2272,7 +2272,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0.46174863, y: 0, z: 0, w: 0.8870109}
   m_LocalPosition: {x: 0, y: -3.9473267, z: 3.0836792}
-  m_LocalScale: {x: 0.5382775, y: 0.5382775, z: 0.5382775}
+  m_LocalScale: {x: 0.4964115, y: 0.4964115, z: 0.4964115}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}

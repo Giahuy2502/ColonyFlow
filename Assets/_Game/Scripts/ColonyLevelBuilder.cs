@@ -108,7 +108,8 @@ namespace ColonyFlow
 
             UnloadLevel();
             levelData.BuildPixels(generatedPixels);
-            trayCapacity = levelData.TrayCapacity;
+            tray.ResetCapacity();
+            trayCapacity = tray.Capacity;
             levelData.BuildColumns(generatedPixels, columnData);
             if (!levelData.ValidateGeneratedLevel(generatedPixels, columnData, out string error))
             {
@@ -118,7 +119,6 @@ namespace ColonyFlow
 
             board.Configure(levelData.BoardSize, levelData.BoardWorldSize, generatedPixels);
             AlignColumnsRoot();
-            tray.Configure(trayCapacity);
             if (!PrepareTraySlots())
                 return false;
             CreateColumns();

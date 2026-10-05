@@ -7,3 +7,8 @@ ColonyFlow.slnx
 Assembly-CSharp-Editor.csproj
 .vsconfig
 .vscode
+KinoBloom.Runtime.csproj
+ToonyColorsPro.Demo.Editor.csproj
+ToonyColorsPro.Editor.csproj
+ToonyColorsPro.Runtime.csproj
+ToonyColorsPro2.Demo.csproj

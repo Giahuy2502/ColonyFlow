@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace ColonyFlow
 {
@@ -8,7 +9,8 @@ namespace ColonyFlow
     public sealed class ColonyTray : MonoBehaviour
     {
         [Header("Capacity")]
-        [SerializeField, Min(1)] private int capacity = 5;
+        [FormerlySerializedAs("capacity")]
+        [SerializeField, Min(1)] private int startingCapacity = 5;
 
         [Header("Layout")]
         [SerializeField] private List<Transform> slotObjects = new List<Transform>();
@@ -25,6 +27,7 @@ namespace ColonyFlow
         [SerializeField, Min(1f)] private float slotPopEasePower = 3f;
         [SerializeField, Min(0f)] private float slotPopOvershoot = 0.12f;
         private Colony[] slots;
+        private int capacity;
 
         public int Capacity => capacity;
         public int SlotObjectCount => slotObjects.Count;
@@ -51,12 +54,12 @@ namespace ColonyFlow
 
         private void Awake()
         {
-            Initialize();
+            ResetCapacity();
         }
 
         private void OnValidate()
         {
-            capacity = Mathf.Max(1, capacity);
+            startingCapacity = Mathf.Max(1, startingCapacity);
             slotSpacing = Mathf.Max(0f, slotSpacing);
             expansionAmount = Mathf.Max(1, expansionAmount);
             slotPopDuration = Mathf.Max(0.01f, slotPopDuration);
@@ -70,7 +73,7 @@ namespace ColonyFlow
         private void RefreshEditorSlotLayout()
         {
             int slotCount = slotObjects.Count;
-            int visibleSlotCount = Mathf.Min(capacity, slotCount);
+            int visibleSlotCount = Mathf.Min(startingCapacity, slotCount);
             float startX = slotCenterX - (visibleSlotCount - 1) * slotSpacing * 0.5f;
             for (int i = 0; i < slotCount; i++)
             {
@@ -100,9 +103,9 @@ namespace ColonyFlow
             OccupiedCount = 0;
         }
 
-        public void Configure(int newCapacity)
+        public void ResetCapacity()
         {
-            capacity = Mathf.Max(1, newCapacity);
+            capacity = Mathf.Max(1, startingCapacity);
             Initialize();
         }
 

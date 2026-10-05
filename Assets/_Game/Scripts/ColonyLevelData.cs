@@ -4,25 +4,13 @@ using UnityEngine;
 
 namespace ColonyFlow
 {
-    public enum GeneratedPixelPattern : byte
-    {
-        Watermelon,
-        FilledBoard,
-        RainbowRings,
-        CandySpiral,
-        Mosaic,
-        Custom
-    }
-
     [CreateAssetMenu(fileName = "Level_", menuName = "Colony Flow/Level Data")]
     public sealed class ColonyLevelData : ScriptableObject
     {
         [SerializeField, Range(5, 100)] private int width = 20;
         [SerializeField, Range(5, 100)] private int height = 20;
         [SerializeField, Min(1f)] private float boardWorldSize = 4.4f;
-        [SerializeField] private GeneratedPixelPattern pattern = GeneratedPixelPattern.Watermelon;
         [SerializeField] private int seed = 512;
-        [SerializeField, Min(1)] private int trayCapacity = 5;
         [SerializeField, Range(1, 10)] private int columnCount = 5;
         [SerializeField, Min(1)] private int maxColonyQuota = 20;
         [Header("Custom Pixel Map")]
@@ -31,28 +19,12 @@ namespace ColonyFlow
 
         public Vector2Int BoardSize => new Vector2Int(width, height);
         public float BoardWorldSize => boardWorldSize;
-        public int TrayCapacity => trayCapacity;
-
         public void BuildPixels(List<PixelData> destination)
         {
             if (destination == null)
                 throw new ArgumentNullException(nameof(destination));
             destination.Clear();
-
-            if (pattern == GeneratedPixelPattern.Custom)
-            {
-                BuildCustomPixels(destination);
-                return;
-            }
-
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    if (TryGetGeneratedColor(x, y, out PixelColor color))
-                        destination.Add(new PixelData(new Vector2Int(x, y), color));
-                }
-            }
+            BuildCustomPixels(destination);
         }
 
         public void BuildColumns(List<PixelData> generatedPixels,
@@ -72,9 +44,7 @@ namespace ColonyFlow
                 counts[pixel.Color] = count + 1;
             }
 
-            PixelColor[] order = pattern == GeneratedPixelPattern.Watermelon
-                ? new[] { PixelColor.Green, PixelColor.Red, PixelColor.Purple }
-                : (PixelColor[])Enum.GetValues(typeof(PixelColor));
+            PixelColor[] order = (PixelColor[])Enum.GetValues(typeof(PixelColor));
 
             var generatedColonies = new List<ColonySpec>();
             foreach (PixelColor color in order)
@@ -228,9 +198,9 @@ namespace ColonyFlow
                 error = $"{name}: level contains no Colony columns.";
                 return false;
             }
-            if (trayCapacity <= 0 || columnCount <= 0 || maxColonyQuota <= 0)
+            if (columnCount <= 0 || maxColonyQuota <= 0)
             {
-                error = $"{name}: tray capacity, column count and Colony quota must be positive.";
+                error = $"{name}: column count and Colony quota must be positive.";
                 return false;
             }
 
@@ -293,76 +263,6 @@ namespace ColonyFlow
             return true;
         }
 
-        private bool TryGetGeneratedColor(int x, int y, out PixelColor color)
-        {
-            if (pattern == GeneratedPixelPattern.FilledBoard)
-            {
-                color = PixelColor.Blue;
-                return true;
-            }
-
-            float nx = ((x + 0.5f) / width - 0.5f) * 2f;
-            float ny = ((y + 0.5f) / height - 0.5f) * 2f;
-            float radiusSquared = nx * nx / 0.92f + ny * ny / 0.78f;
-            if (radiusSquared > 1f)
-            {
-                color = default;
-                return false;
-            }
-
-            if (pattern == GeneratedPixelPattern.RainbowRings)
-            {
-                PixelColor[] palette =
-                {
-                    PixelColor.Cyan, PixelColor.Blue, PixelColor.Purple,
-                    PixelColor.Red, PixelColor.Orange, PixelColor.Yellow,
-                    PixelColor.Green, PixelColor.White
-                };
-                float radius = Mathf.Sqrt(radiusSquared);
-                int ring = Mathf.Clamp(Mathf.FloorToInt((1f - radius) * 8f), 0, palette.Length - 1);
-                int shimmer = Hash(x / 2, y / 2) % 7 == 0 ? 1 : 0;
-                color = palette[(ring + shimmer) % palette.Length];
-                return true;
-            }
-
-            if (pattern == GeneratedPixelPattern.CandySpiral)
-            {
-                PixelColor[] palette =
-                {
-                    PixelColor.Red, PixelColor.White, PixelColor.Cyan,
-                    PixelColor.Yellow, PixelColor.Purple, PixelColor.Orange
-                };
-                float radius = Mathf.Sqrt(radiusSquared);
-                float angle = Mathf.Atan2(ny, nx) / (Mathf.PI * 2f) + 0.5f;
-                int stripe = Mathf.FloorToInt(angle * 12f + radius * 13f);
-                color = palette[PositiveModulo(stripe, palette.Length)];
-                return true;
-            }
-
-            if (pattern == GeneratedPixelPattern.Mosaic)
-            {
-                PixelColor[] palette =
-                {
-                    PixelColor.Blue, PixelColor.Cyan, PixelColor.Green,
-                    PixelColor.Yellow, PixelColor.Orange, PixelColor.Red,
-                    PixelColor.Purple, PixelColor.White, PixelColor.Black
-                };
-                int cellX = x / 3;
-                int cellY = y / 3;
-                int index = Hash(cellX, cellY) + cellX * 3 + cellY * 5;
-                color = palette[PositiveModulo(index, palette.Length)];
-                return true;
-            }
-
-            if (radiusSquared > 0.72f)
-                color = PixelColor.Green;
-            else if (Hash(x, y) % 29 == 0)
-                color = PixelColor.Purple;
-            else
-            color = PixelColor.Red;
-            return true;
-        }
-
         private void BuildCustomPixels(List<PixelData> destination)
         {
             if (customRows == null || customRows.Count != height)
@@ -418,13 +318,5 @@ namespace ColonyFlow
             return result < 0 ? result + divisor : result;
         }
 
-        private int Hash(int x, int y)
-        {
-            unchecked
-            {
-                int value = x * 73856093 ^ y * 19349663 ^ seed * 83492791;
-                return value & int.MaxValue;
-            }
-        }
     }
 }

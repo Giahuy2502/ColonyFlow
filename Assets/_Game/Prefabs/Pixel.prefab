@@ -106,7 +106,7 @@ MonoBehaviour:
   poolType: 200
   visual: {fileID: 1003}
   collectDuration: 0.2
-  collectPopScale: 1.12
+  collectPopScale: 1
   collectPopPoint: 0.35
   collectLift: 0.08
   collectRotationEuler: {x: -18.2455, y: -19.032, z: 6.5665}

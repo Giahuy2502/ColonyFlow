@@ -11,18 +11,15 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d5b98eca40c34a36a154dad1b6ee7c73, type: 3}
   m_Name: Level_03_RedBird
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   width: 30
   height: 30
   boardWorldSize: 4.4
   seed: 303
   columnCount: 5
   maxColonyQuota: 30
-  customColorLegend:
-  - 8
-  - 5
-  - 1
-  - 7
+  hiddenColonyCount: 7
+  customColorLegend: 08000000050000000100000007000000
   customRows:
   - ..............................
   - ..............................

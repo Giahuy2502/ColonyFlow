@@ -13,6 +13,9 @@ namespace ColonyFlow
         [SerializeField] private int seed = 512;
         [SerializeField, Range(1, 10)] private int columnCount = 5;
         [SerializeField, Min(1)] private int maxColonyQuota = 20;
+        [Header("Hidden Colonies")]
+        [Tooltip("Number of non-front Colonies whose color and count start hidden.")]
+        [SerializeField, Min(0)] private int hiddenColonyCount;
         [Header("Custom Pixel Map")]
         [SerializeField] private List<PixelColor> customColorLegend = new List<PixelColor>();
         [SerializeField] private List<string> customRows = new List<string>();
@@ -90,6 +93,39 @@ namespace ColonyFlow
             }
 
             DistributeColonies(generatedColonies, destination);
+            AssignHiddenColonies(destination);
+        }
+
+        private void AssignHiddenColonies(List<ColonyColumnSpec> columns)
+        {
+            var candidates = new List<ColonySpec>();
+            for (int columnIndex = 0; columnIndex < columns.Count; columnIndex++)
+            {
+                List<ColonySpec> colonies = columns[columnIndex].colonies;
+                for (int depth = 0; depth < colonies.Count; depth++)
+                {
+                    ColonySpec colony = colonies[depth];
+                    colony.isHidden = false;
+                    if (depth > 0)
+                        candidates.Add(colony);
+                }
+            }
+
+            if (hiddenColonyCount <= 0 || candidates.Count == 0)
+                return;
+
+            uint randomState = unchecked((uint)seed) ^ 0x9E3779B9u;
+            for (int i = candidates.Count - 1; i > 0; i--)
+            {
+                randomState = randomState * 1664525u + 1013904223u;
+                int swapIndex = (int)(randomState % (uint)(i + 1));
+                (candidates[i], candidates[swapIndex]) =
+                    (candidates[swapIndex], candidates[i]);
+            }
+
+            int count = Mathf.Min(hiddenColonyCount, candidates.Count);
+            for (int i = 0; i < count; i++)
+                candidates[i].isHidden = true;
         }
 
         private void DistributeColonies(List<ColonySpec> source,

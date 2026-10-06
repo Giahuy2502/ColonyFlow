@@ -17,6 +17,7 @@ namespace ColonyFlow
     {
         [SerializeField] private PixelColor color;
         [SerializeField, Min(1)] private int pixelCount = 1;
+        [SerializeField] private bool startsColorHidden;
         [SerializeField] private ColonyView view;
 
         public PixelColor Color => color;
@@ -24,12 +25,14 @@ namespace ColonyFlow
         public int InFlightCount { get; private set; }
         public int UnassignedCount => Mathf.Max(0, RemainingCount - InFlightCount);
         public int DisplayCount => UnassignedCount;
+        public bool IsColorHidden { get; private set; }
         public ColonyState State { get; private set; }
         public bool CanReceiveTask => (State == ColonyState.Active || State == ColonyState.Blocked) && UnassignedCount > 0;
         public ColonyView View => view;
 
         public event Action<Colony, ColonyState> StateChanged;
         public event Action<Colony> CountChanged;
+        public event Action<Colony> ColorVisibilityChanged;
         public event Action<Colony> Completed;
 
         private void Awake()
@@ -37,10 +40,12 @@ namespace ColonyFlow
             ResetRuntimeState();
         }
 
-        public void Configure(PixelColor newColor, int count)
+        public void Configure(PixelColor newColor, int count,
+            bool startColorHidden = false)
         {
             color = newColor;
             pixelCount = Mathf.Max(1, count);
+            startsColorHidden = startColorHidden;
             ResetRuntimeState();
         }
 
@@ -48,8 +53,19 @@ namespace ColonyFlow
         {
             RemainingCount = Mathf.Max(1, pixelCount);
             InFlightCount = 0;
+            IsColorHidden = startsColorHidden;
             SetState(ColonyState.InColumn);
             CountChanged?.Invoke(this);
+            ColorVisibilityChanged?.Invoke(this);
+        }
+
+        internal void RevealColor()
+        {
+            if (!IsColorHidden)
+                return;
+
+            IsColorHidden = false;
+            ColorVisibilityChanged?.Invoke(this);
         }
 
         internal void BeginMovingToTray()

@@ -10,11 +10,13 @@ namespace ColonyFlow
     {
         public PixelColor color;
         [Min(1)] public int count = 1;
+        public bool isHidden;
 
-        public ColonySpec(PixelColor color, int count)
+        public ColonySpec(PixelColor color, int count, bool isHidden = false)
         {
             this.color = color;
             this.count = count;
+            this.isHidden = isHidden;
         }
     }
 
@@ -330,9 +332,14 @@ namespace ColonyFlow
                 {
                     ColonyView view = columnViews[columnIndex][i];
                     if (view != null)
-                        view.SetPickFeedback(levelManager != null &&
+                    {
+                        bool isAtFront = columns[columnIndex] != null &&
+                                         columns[columnIndex].Peek() == view.Colony;
+                        bool normallySelectable = levelManager != null &&
                             levelManager.IsColonyNormallySelectable(
-                                view.Colony, columnIndex));
+                                view.Colony, columnIndex);
+                        view.SetPickFeedback(normallySelectable, isAtFront);
+                    }
                 }
         }
 
@@ -400,7 +407,8 @@ namespace ColonyFlow
                     colony.transform.localPosition =
                         ColumnPosition(startX, columnIndex, depth);
                     colony.transform.localRotation = Quaternion.identity;
-                    colony.Configure(colonySpec.color, colonySpec.count);
+                    colony.Configure(
+                        colonySpec.color, colonySpec.count, colonySpec.isHidden);
 
                     if (colony.View == null)
                         throw new MissingReferenceException(

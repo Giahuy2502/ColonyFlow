@@ -11,20 +11,15 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d5b98eca40c34a36a154dad1b6ee7c73, type: 3}
   m_Name: Level_01_Cupcake
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   width: 22
   height: 21
   boardWorldSize: 4.4
   seed: 512
   columnCount: 5
   maxColonyQuota: 30
-  customColorLegend:
-  - 1
-  - 8
-  - 5
-  - 9
-  - 10
-  - 4
+  hiddenColonyCount: 5
+  customColorLegend: 010000000800000005000000090000000a00000004000000
   customRows:
   - 0000000000000000000000
   - 0000011110000000000000

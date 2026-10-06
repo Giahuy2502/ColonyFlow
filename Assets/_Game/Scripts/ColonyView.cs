@@ -9,6 +9,7 @@ namespace ColonyFlow
     {
         [SerializeField] private Renderer bodyRenderer;
         [SerializeField] private Renderer topRenderer;
+        [SerializeField] private Material hiddenMaterial;
         [SerializeField] private TextMeshPro countText;
         [SerializeField] private Collider clickCollider;
         [SerializeField] private Animator animator;
@@ -19,6 +20,8 @@ namespace ColonyFlow
         [SerializeField, Range(0.1f, 1f)] private float unavailableBrightness = 0.6f;
         [SerializeField] private Color additionalRendererColor =
             new Color(0.78f, 0.8f, 0.78f, 1f);
+        [SerializeField] private Color hiddenBaseColor =
+            new Color(0.302f, 0.325f, 0.4f, 1f);
         [SerializeField, Min(0.1f)] private float moveSpeed = 8f;
         [SerializeField, Min(0.1f)] private float columnReflowSpeed = 4f;
         [SerializeField, Min(0.01f)] private float disappearDuration = 0.32f;
@@ -45,7 +48,8 @@ namespace ColonyFlow
         private float trayBounceTime;
         private bool isTrayBouncing;
         private bool isNormallySelectable;
-        private bool selectionFeedbackInitialized;
+        private bool countTextDefaultEnabled;
+        private Material topRendererDefaultMaterial;
         private static readonly Dictionary<Collider, ColonyView> ClickTargets = new Dictionary<Collider, ColonyView>();
 
         private const string IdleAnim = "Idle";
@@ -57,6 +61,9 @@ namespace ColonyFlow
         private void Awake()
         {
             propertyBlock = new MaterialPropertyBlock();
+            countTextDefaultEnabled = countText != null && countText.enabled;
+            if (topRenderer != null)
+                topRendererDefaultMaterial = topRenderer.sharedMaterial;
             if (visualRoot != null)
                 visualRestingScale = visualRoot.localScale;
         }
@@ -79,6 +86,7 @@ namespace ColonyFlow
             {
                 colony.CountChanged -= RefreshCount;
                 colony.StateChanged -= OnStateChanged;
+                colony.ColorVisibilityChanged -= OnColorVisibilityChanged;
             }
 
             colony = model;
@@ -93,7 +101,6 @@ namespace ColonyFlow
             displayedCount = -1;
             isTrayBouncing = false;
             isNormallySelectable = false;
-            selectionFeedbackInitialized = false;
             if (visualRoot != null)
                 visualRoot.localScale = visualRestingScale;
             if (animator != null)
@@ -105,12 +112,17 @@ namespace ColonyFlow
 
             if (bodyRenderer == null)
                 throw new MissingReferenceException($"{name}: ColonyView requires a serialized Renderer reference.");
+            if (hiddenMaterial == null)
+                throw new MissingReferenceException(
+                    $"{name}: ColonyView requires a serialized hidden Material reference.");
             ApplyColor();
             ApplyOutlineWidth();
             SetOutlineEnabled(false);
+            ApplyHiddenVisual();
             SyncCount();
             colony.CountChanged += RefreshCount;
             colony.StateChanged += OnStateChanged;
+            colony.ColorVisibilityChanged += OnColorVisibilityChanged;
         }
 
         public void MoveToColumnPosition(Vector3 position)
@@ -161,14 +173,11 @@ namespace ColonyFlow
             columnIndex = ownerColumn;
         }
 
-        internal void SetPickFeedback(bool normallySelectable)
+        internal void SetPickFeedback(bool normallySelectable, bool isAtFront)
         {
-            if (selectionFeedbackInitialized &&
-                isNormallySelectable == normallySelectable)
-                return;
-
             isNormallySelectable = normallySelectable;
-            selectionFeedbackInitialized = true;
+            if (isAtFront)
+                colony?.RevealColor();
             ApplyPickFeedback();
         }
 
@@ -183,6 +192,7 @@ namespace ColonyFlow
                 return;
             colony.CountChanged -= RefreshCount;
             colony.StateChanged -= OnStateChanged;
+            colony.ColorVisibilityChanged -= OnColorVisibilityChanged;
         }
 
         public static bool TryGetClickTarget(Collider collider, out ColonyView view)
@@ -278,9 +288,20 @@ namespace ColonyFlow
 
         private void OnStateChanged(Colony changed, ColonyState state)
         {
+            if (state == ColonyState.MovingToTray)
+                colony.RevealColor();
             ApplyPickFeedback();
             if (state == ColonyState.Completed)
                 BeginDisappear();
+        }
+
+        private void OnColorVisibilityChanged(Colony changed)
+        {
+            if (changed != colony)
+                return;
+
+            ApplyHiddenVisual();
+            ApplyPickFeedback();
         }
 
         private void BeginDisappear()
@@ -322,6 +343,18 @@ namespace ColonyFlow
             if (bodyRenderer == null || colony == null)
                 return;
 
+            if (colony.IsColorHidden)
+            {
+                SetRendererColor(bodyRenderer, Color.white);
+                if (topRenderer != null)
+                    SetRendererColor(topRenderer, Color.white);
+                if (additionalDimRenderers != null)
+                    for (int i = 0; i < additionalDimRenderers.Length; i++)
+                        SetRendererColor(
+                            additionalDimRenderers[i], hiddenBaseColor);
+                return;
+            }
+
             float brightness = GetBrightness();
             Color tint = MultiplyRgb(PixelColorUtility.ToUnityColor(colony.Color), brightness);
             Color sideTint = Color.Lerp(tint, Color.black, 0.14f);
@@ -345,9 +378,27 @@ namespace ColonyFlow
                 return;
 
             bool selectableInColumn = colony.State == ColonyState.InColumn &&
-                                      isNormallySelectable;
+                                      isNormallySelectable &&
+                                      !colony.IsColorHidden;
             SetOutlineEnabled(selectableInColumn);
             ApplyColor();
+        }
+
+        private void ApplyHiddenVisual()
+        {
+            if (colony == null)
+                return;
+
+            bool hidden = colony.IsColorHidden;
+            if (topRenderer != null)
+                topRenderer.sharedMaterial = hidden
+                    ? hiddenMaterial
+                    : topRendererDefaultMaterial;
+            if (countText != null)
+                countText.enabled = !hidden && countTextDefaultEnabled;
+
+            if (hidden)
+                SetOutlineEnabled(false);
         }
 
         private float GetBrightness()

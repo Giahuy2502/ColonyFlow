@@ -46,6 +46,13 @@ namespace ColonyFlow
         private Vector3 carriedPixelTargetScale;
         private float carriedPixelPopTime;
         private bool carriedPixelPopping;
+        private float cachedMoveSpeedMultiplier = float.NaN;
+
+        // The baked gait covers one stride at this movement speed. Only Move
+        // uses this parameter; Eat/Jump and scaled game time remain unchanged.
+        private const float GaitReferenceSpeed = 1.5f;
+        private static readonly int MoveSpeedMultiplierHash =
+            Animator.StringToHash("MoveSpeedMultiplier");
 
         private const string MoveAnim = "Move";
         private const string EatAnim = "Eat";
@@ -116,6 +123,7 @@ namespace ColonyFlow
                 animator.Rebind();
                 animator.Update(0f);
             }
+            cachedMoveSpeedMultiplier = float.NaN;
             animName = null;
             ChangeAnim(IdleAnim);
         }
@@ -146,6 +154,8 @@ namespace ColonyFlow
 
         private void UpdateMovement()
         {
+            SyncMoveSpeedMultiplier();
+
             if (waypointIndex >= route.Count)
             {
                 CompleteMovementRoute();
@@ -241,6 +251,9 @@ namespace ColonyFlow
 
         public void ChangeAnim(string anim)
         {
+            if (anim == MoveAnim)
+                SyncMoveSpeedMultiplier();
+
             if (animator == null || string.IsNullOrEmpty(anim) || animName == anim)
                 return;
 
@@ -249,6 +262,19 @@ namespace ColonyFlow
 
             animName = anim;
             animator.SetTrigger(animName);
+        }
+
+        private void SyncMoveSpeedMultiplier()
+        {
+            if (animator == null)
+                return;
+
+            float multiplier = moveSpeed / GaitReferenceSpeed;
+            if (multiplier == cachedMoveSpeedMultiplier)
+                return;
+
+            animator.SetFloat(MoveSpeedMultiplierHash, multiplier);
+            cachedMoveSpeedMultiplier = multiplier;
         }
 
         private void CopyRoute(List<Vector3> source)

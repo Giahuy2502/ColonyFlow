@@ -155,12 +155,12 @@ TextureImporter:
       name: backgound_setting_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 1023
-        height: 1537
+        x: 25
+        y: 68
+        width: 975
+        height: 1457
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 25354be38efe61641b45b887074e731c
     internalID: 0
     vertices: []
     indices: 

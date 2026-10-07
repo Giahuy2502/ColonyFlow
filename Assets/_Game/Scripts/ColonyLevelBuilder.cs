@@ -76,6 +76,10 @@ namespace ColonyFlow
         private bool columnLayoutRefreshPending;
         private bool pickFeedbackRefreshPending;
         private float pendingColumnAnimationDuration = -1f;
+#if UNITY_EDITOR
+        private Vector4 appliedColumnLayout;
+        private float appliedColumnWorldCenterX;
+#endif
 
         private void Awake()
         {
@@ -90,6 +94,9 @@ namespace ColonyFlow
 
         private void LateUpdate()
         {
+#if UNITY_EDITOR
+            ApplyEditedColumnLayout();
+#endif
             if (columnLayoutRefreshPending)
             {
                 columnLayoutRefreshPending = false;
@@ -125,6 +132,9 @@ namespace ColonyFlow
                 return false;
             CreateColumns();
             InitializeViews();
+#if UNITY_EDITOR
+            CacheColumnLayout();
+#endif
             tray.ColonyAdded += OnColonyAdded;
             tray.ColonyRemoved += OnColonyRemoved;
 
@@ -437,6 +447,34 @@ namespace ColonyFlow
             coloniesRoot.position = rootPosition;
         }
 
+#if UNITY_EDITOR
+        private void CacheColumnLayout()
+        {
+            appliedColumnLayout = new Vector4(
+                columnSpacing, columnHeight, columnStartDepth, columnDepthSpacing);
+            appliedColumnWorldCenterX = columnWorldCenterX;
+        }
+
+        private void ApplyEditedColumnLayout()
+        {
+            if (columns.Count == 0)
+                return;
+
+            var layout = new Vector4(
+                columnSpacing, columnHeight, columnStartDepth, columnDepthSpacing);
+            if (layout.Equals(appliedColumnLayout) &&
+                columnWorldCenterX.Equals(appliedColumnWorldCenterX))
+                return;
+
+            CacheColumnLayout();
+            AlignColumnsRoot();
+            // Inspector edits preview immediately, even at timeScale = 0.
+            // Update the existing movement targets too, so resuming cannot snap back.
+            RefreshColumnPositions(-1f, true);
+            RequestPickFeedbackRefresh();
+        }
+#endif
+
         private void InitializeViews()
         {
             for (int columnIndex = 0; columnIndex < columnViews.Count; columnIndex++)
@@ -464,7 +502,7 @@ namespace ColonyFlow
             RequestPickFeedbackRefresh();
         }
 
-        private void RefreshColumnPositions(float animationDuration)
+        private void RefreshColumnPositions(float animationDuration, bool snapImmediately = false)
         {
             float center = board.GridCenterLocalX;
             int activeColumnCount = 0;
@@ -488,6 +526,8 @@ namespace ColonyFlow
                     {
                         Vector3 target = ColumnPosition(
                             startX, compactColumnIndex, depth++);
+                        if (snapImmediately)
+                            view.transform.localPosition = target;
                         if (animationDuration > 0f)
                             view.MoveToColumnPositionOverDuration(target, animationDuration);
                         else

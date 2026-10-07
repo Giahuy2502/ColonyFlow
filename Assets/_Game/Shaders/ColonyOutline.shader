@@ -1,11 +1,5 @@
 Shader "ColonyFlow/Colony Outline"
 {
-    Properties
-    {
-        _OutlineColor ("Outline Color", Color) = (1, 1, 1, 1)
-        _OutlineWidth ("Outline Width", Range(0, 0.1)) = 0.03
-    }
-
     SubShader
     {
         Tags
@@ -17,15 +11,15 @@ Shader "ColonyFlow/Colony Outline"
 
         Pass
         {
-            Name "Outline"
-            Tags { "LightMode" = "SRPDefaultUnlit" }
+            Name "ColonyOutlineMask"
+            Tags { "LightMode" = "ColonyOutlineMask" }
 
-            Cull Front
+            Cull Back
             ZWrite On
             ZTest LEqual
 
             HLSLPROGRAM
-            #pragma target 2.0
+            #pragma target 3.0
             #pragma vertex OutlineVertex
             #pragma fragment OutlineFragment
             #pragma multi_compile_instancing
@@ -35,39 +29,31 @@ Shader "ColonyFlow/Colony Outline"
             struct Attributes
             {
                 float4 positionOS : POSITION;
-                float3 normalOS : NORMAL;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
-                UNITY_VERTEX_INPUT_INSTANCE_ID
+                float eyeDepth : TEXCOORD0;
                 UNITY_VERTEX_OUTPUT_STEREO
             };
-
-            CBUFFER_START(UnityPerMaterial)
-                half4 _OutlineColor;
-                float _OutlineWidth;
-            CBUFFER_END
 
             Varyings OutlineVertex(Attributes input)
             {
                 Varyings output;
                 UNITY_SETUP_INSTANCE_ID(input);
-                UNITY_TRANSFER_INSTANCE_ID(input, output);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                float3 expandedPosition = input.positionOS.xyz +
-                    normalize(input.normalOS) * _OutlineWidth;
-                output.positionCS = TransformObjectToHClip(expandedPosition);
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                output.positionCS = TransformWorldToHClip(positionWS);
+                output.eyeDepth = -TransformWorldToView(positionWS).z;
                 return output;
             }
 
             half4 OutlineFragment(Varyings input) : SV_Target
             {
-                UNITY_SETUP_INSTANCE_ID(input);
-                return _OutlineColor;
+                return half4(1, input.eyeDepth, 0, 0);
             }
             ENDHLSL
         }

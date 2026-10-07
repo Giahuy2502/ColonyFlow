@@ -155,12 +155,12 @@ TextureImporter:
       name: 2xbutton_1_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 1774
-        height: 887
+        x: 77
+        y: 89
+        width: 1619
+        height: 687
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 6b818d3789da92f44b4aec7b32b0ef1f
     internalID: 0
     vertices: []
     indices: 

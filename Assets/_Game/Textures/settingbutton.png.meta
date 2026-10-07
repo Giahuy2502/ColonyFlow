@@ -155,12 +155,12 @@ TextureImporter:
       name: settingbutton_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 1263
-        height: 1246
+        x: 119
+        y: 126
+        width: 1024
+        height: 995
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
@@ -177,7 +177,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: e249c5c9c9c571a44bb6278e90720595
     internalID: 0
     vertices: []
     indices: 

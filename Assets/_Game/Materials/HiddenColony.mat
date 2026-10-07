@@ -42,21 +42,25 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Ambient: 0.888
-    - _LightStrength: 0.365
+    - _Ambient: 0.95
+    - _LightStrength: 0.687
     - _QuestionFeather: 0.12
-    - _QuestionOutlineSize: 0.05
-    - _QuestionThreshold: 0.45
-    - _SmallQuestionOutlineSize: 0.02
-    - _SmallQuestionRotationStrength: 2
+    - _QuestionOutlineSize: 0.0412
+    - _QuestionThreshold: 0.707
+    - _SmallQuestionOutlineSize: 0
+    - _SmallQuestionInset: 0.08
+    - _SmallQuestionThreshold: 0.45
+    - _SmallQuestionRotationStrength: 0.31
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _QuestionPlacement: {r: 0.3, g: 0.17, b: 0.4, a: 0.66}
+    - _FaceBounds: {r: -0.5, g: -0.5, b: 1, a: 1}
+    - _MainQuestionColor: {r: 1, g: 1, b: 1, a: 1}
+    - _QuestionPlacement: {r: 0.34, g: 0.18, b: 0.32, a: 0.64}
     - _QuestionSourceRect: {r: 0.375, g: 0.325, b: 0.25, a: 0.38}
-    - _SideColor: {r: 0.302, g: 0.325, b: 0.4, a: 1}
-    - _SmallQuestionSize: {r: 0.22, g: 0.2, b: 0, a: 0}
-    - _SymbolColor: {r: 0.957, g: 0.937, b: 0.894, a: 1}
-    - _SymbolOutlineColor: {r: 0.255, g: 0.275, b: 0.333, a: 1}
-    - _TopColor: {r: 0.451, g: 0.478, b: 0.549, a: 1}
+    - _SideColor: {r: 0.40392157, g: 0.39215687, b: 0.42352942, a: 1}
+    - _SmallQuestionSize: {r: 0.25, g: 0.2, b: 0, a: 0}
+    - _SymbolColor: {r: 1, g: 1, b: 1, a: 1}
+    - _SymbolOutlineColor: {r: 0.24705882, g: 0.23921569, b: 0.27058825, a: 1}
+    - _TopColor: {r: 0.5372549, g: 0.5254902, b: 0.54901963, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

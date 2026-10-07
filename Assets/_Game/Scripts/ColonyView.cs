@@ -16,7 +16,6 @@ namespace ColonyFlow
         [SerializeField] private Transform visualRoot;
         [SerializeField] private Renderer[] additionalDimRenderers;
         [SerializeField] private Renderer[] outlineRenderers;
-        [SerializeField, Range(0f, 0.1f)] private float outlineWidth = 0.03f;
         [SerializeField, Range(0.1f, 1f)] private float unavailableBrightness = 0.6f;
         [SerializeField] private Color additionalRendererColor =
             new Color(0.78f, 0.8f, 0.78f, 1f);
@@ -25,13 +24,10 @@ namespace ColonyFlow
         [SerializeField, Min(0.1f)] private float moveSpeed = 8f;
         [SerializeField, Min(0.1f)] private float columnReflowSpeed = 4f;
         [SerializeField, Min(0.01f)] private float disappearDuration = 0.32f;
-        [Header("Feedback")]
-        [SerializeField, Min(0.01f)] private float trayBounceDuration = 0.22f;
-        [SerializeField, Min(1f)] private float trayBounceScale = 1.12f;
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
-        private static readonly int OutlineWidthId = Shader.PropertyToID("_OutlineWidth");
+        private static readonly int FaceBoundsId = Shader.PropertyToID("_FaceBounds");
         private MaterialPropertyBlock propertyBlock;
         [SerializeField] private Colony colony;
         private LevelManager levelManager;
@@ -44,9 +40,9 @@ namespace ColonyFlow
         private float disappearTime;
         private string animName;
         private int displayedCount = -1;
+        private Vector3 visualRestingPosition;
         private Vector3 visualRestingScale;
-        private float trayBounceTime;
-        private bool isTrayBouncing;
+        private int selectionAnimationFrame = -1;
         private bool isNormallySelectable;
         private bool countTextDefaultEnabled;
         private Material topRendererDefaultMaterial;
@@ -55,6 +51,10 @@ namespace ColonyFlow
         private const string IdleAnim = "Idle";
         private const string MoveAnim = "Move";
         private const string DisappearAnim = "Disappear";
+        private const string SelectionPopAnim = "SelectionPop";
+        private const string SelectionLandAnim = "SelectionLand";
+        private static readonly int SelectionPopState = Animator.StringToHash(SelectionPopAnim);
+        private static readonly int SelectionLandState = Animator.StringToHash(SelectionLandAnim);
 
         public Colony Colony => colony;
 
@@ -65,7 +65,10 @@ namespace ColonyFlow
             if (topRenderer != null)
                 topRendererDefaultMaterial = topRenderer.sharedMaterial;
             if (visualRoot != null)
+            {
+                visualRestingPosition = visualRoot.localPosition;
                 visualRestingScale = visualRoot.localScale;
+            }
         }
 
         private void OnEnable()
@@ -78,6 +81,7 @@ namespace ColonyFlow
         {
             if (clickCollider != null)
                 ClickTargets.Remove(clickCollider);
+            ResetVisualPose();
         }
 
         public void Initialize(Colony model, LevelManager gameplayLevelManager, int ownerColumn)
@@ -99,10 +103,9 @@ namespace ColonyFlow
             disappearTime = 0f;
             animName = null;
             displayedCount = -1;
-            isTrayBouncing = false;
+            selectionAnimationFrame = -1;
             isNormallySelectable = false;
-            if (visualRoot != null)
-                visualRoot.localScale = visualRestingScale;
+            ResetVisualPose();
             if (animator != null)
             {
                 animator.Rebind();
@@ -115,8 +118,8 @@ namespace ColonyFlow
             if (hiddenMaterial == null)
                 throw new MissingReferenceException(
                     $"{name}: ColonyView requires a serialized hidden Material reference.");
+            InitializeHiddenFaceBounds();
             ApplyColor();
-            ApplyOutlineWidth();
             SetOutlineEnabled(false);
             ApplyHiddenVisual();
             SyncCount();
@@ -154,7 +157,7 @@ namespace ColonyFlow
             currentMoveSpeed = moveSpeed;
             activateOnArrival = true;
             isMoving = true;
-            ChangeAnim(MoveAnim);
+            ChangeAnim(SelectionPopAnim, true);
         }
 
         public void MoveWithinTray(Vector3 position)
@@ -165,7 +168,10 @@ namespace ColonyFlow
                 return;
 
             isMoving = true;
-            ChangeAnim(MoveAnim);
+            // A tray expansion can retarget a Colony during takeoff/landing.
+            // Keep the feedback clip; only its logical destination changes.
+            if (!activateOnArrival && !IsPlayingSelectionFeedback())
+                ChangeAnim(MoveAnim);
         }
 
         internal void SetOwnerColumn(int ownerColumn)
@@ -209,7 +215,6 @@ namespace ColonyFlow
         private void Update()
         {
             SyncCount();
-            UpdateFeedback();
 
             if (isDisappearing)
             {
@@ -228,7 +233,8 @@ namespace ColonyFlow
                 if (isMoving)
                 {
                     isMoving = false;
-                    ChangeAnim(IdleAnim);
+                    if (!IsPlayingSelectionFeedback())
+                        ChangeAnim(IdleAnim);
                 }
 
                 if (activateOnArrival)
@@ -262,28 +268,31 @@ namespace ColonyFlow
 
         private void BeginTrayBounce()
         {
-            if (visualRoot == null)
-                return;
-            trayBounceTime = 0f;
-            isTrayBouncing = true;
+            ChangeAnim(SelectionLandAnim, true);
         }
 
-        private void UpdateFeedback()
+        private bool IsPlayingSelectionFeedback()
         {
-            if (isTrayBouncing && visualRoot != null)
-            {
-                trayBounceTime += Time.deltaTime;
-                float progress = Mathf.Clamp01(trayBounceTime / trayBounceDuration);
-                float wave = Mathf.Sin(progress * Mathf.PI);
-                visualRoot.localScale = visualRestingScale *
-                                        Mathf.Lerp(1f, trayBounceScale, wave);
-                if (progress >= 1f)
-                {
-                    visualRoot.localScale = visualRestingScale;
-                    isTrayBouncing = false;
-                }
-            }
+            if (animator == null || animator.runtimeAnimatorController == null)
+                return false;
+            // The trigger may be requested before Animator evaluates this frame.
+            if (selectionAnimationFrame == Time.frameCount)
+                return true;
+            int state = animator.GetCurrentAnimatorStateInfo(0).shortNameHash;
+            if (state == SelectionPopState || state == SelectionLandState)
+                return true;
+            if (!animator.IsInTransition(0))
+                return false;
+            state = animator.GetNextAnimatorStateInfo(0).shortNameHash;
+            return state == SelectionPopState || state == SelectionLandState;
+        }
 
+        private void ResetVisualPose()
+        {
+            if (visualRoot == null)
+                return;
+            visualRoot.localPosition = visualRestingPosition;
+            visualRoot.localScale = visualRestingScale;
         }
 
         private void OnStateChanged(Colony changed, ColonyState state)
@@ -313,6 +322,8 @@ namespace ColonyFlow
             isMoving = false;
             disappearTime = 0f;
             activateOnArrival = false;
+            if (visualRoot != null)
+                visualRoot.localPosition = visualRestingPosition;
             SoundManager.Instance?.PlaySfx(SfxId.ColonyDisappear);
             if (clickCollider != null)
                 clickCollider.enabled = false;
@@ -326,9 +337,9 @@ namespace ColonyFlow
             ChangeAnim(DisappearAnim);
         }
 
-        private void ChangeAnim(string anim)
+        private void ChangeAnim(string anim, bool restart = false)
         {
-            if (animator == null || string.IsNullOrEmpty(anim) || animName == anim)
+            if (animator == null || string.IsNullOrEmpty(anim) || (!restart && animName == anim))
                 return;
 
             if (!string.IsNullOrEmpty(animName))
@@ -336,6 +347,8 @@ namespace ColonyFlow
 
             animName = anim;
             animator.SetTrigger(animName);
+            if (anim == SelectionPopAnim || anim == SelectionLandAnim)
+                selectionAnimationFrame = Time.frameCount;
         }
 
         private void ApplyColor()
@@ -345,7 +358,7 @@ namespace ColonyFlow
 
             if (colony.IsColorHidden)
             {
-                SetRendererColor(bodyRenderer, Color.white);
+                SetRendererColor(bodyRenderer, hiddenBaseColor);
                 if (topRenderer != null)
                     SetRendererColor(topRenderer, Color.white);
                 if (additionalDimRenderers != null)
@@ -401,6 +414,25 @@ namespace ColonyFlow
                 SetOutlineEnabled(false);
         }
 
+        private void InitializeHiddenFaceBounds()
+        {
+            if (topRenderer == null)
+                return;
+
+            var filter = topRenderer.GetComponent<MeshFilter>();
+            if (filter == null || filter.sharedMesh == null)
+                return;
+
+            // Use shared mesh bounds, not vertices or a per-Colony mesh copy.
+            Bounds bounds = filter.sharedMesh.bounds;
+            topRenderer.GetPropertyBlock(propertyBlock);
+            propertyBlock.SetVector(FaceBoundsId, new Vector4(
+                bounds.min.x, bounds.min.z,
+                Mathf.Max(bounds.size.x, 0.00001f),
+                Mathf.Max(bounds.size.z, 0.00001f)));
+            topRenderer.SetPropertyBlock(propertyBlock);
+        }
+
         private float GetBrightness()
         {
             if (colony == null || colony.State != ColonyState.InColumn ||
@@ -417,23 +449,6 @@ namespace ColonyFlow
             for (int i = 0; i < outlineRenderers.Length; i++)
                 if (outlineRenderers[i] != null)
                     outlineRenderers[i].enabled = value;
-        }
-
-        private void ApplyOutlineWidth()
-        {
-            if (outlineRenderers == null)
-                return;
-
-            for (int i = 0; i < outlineRenderers.Length; i++)
-            {
-                Renderer outlineRenderer = outlineRenderers[i];
-                if (outlineRenderer == null)
-                    continue;
-
-                outlineRenderer.GetPropertyBlock(propertyBlock);
-                propertyBlock.SetFloat(OutlineWidthId, outlineWidth);
-                outlineRenderer.SetPropertyBlock(propertyBlock);
-            }
         }
 
         private void SetRendererColor(Renderer target, Color color)

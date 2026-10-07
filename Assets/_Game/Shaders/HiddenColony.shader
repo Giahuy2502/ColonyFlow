@@ -4,8 +4,10 @@ Shader "ColonyFlow/Hidden Colony"
     {
         [MainTexture] _QuestionTex ("Question Source", 2D) = "white" {}
         [MainColor] _BaseColor ("Tint", Color) = (1, 1, 1, 1)
+        [HideInInspector] _FaceBounds ("Face Bounds", Vector) = (-0.5, -0.5, 1, 1)
         _TopColor ("Top Color", Color) = (0.451, 0.478, 0.549, 1)
         _SideColor ("Side Color", Color) = (0.302, 0.325, 0.4, 1)
+        _MainQuestionColor ("Main Question Color", Color) = (1, 1, 1, 1)
         _SymbolColor ("Small Question Color", Color) = (0.957, 0.937, 0.894, 1)
         _SymbolOutlineColor ("Symbol Outline", Color) = (0.255, 0.275, 0.333, 1)
         _QuestionSourceRect ("Question Source Rect", Vector) = (0.375, 0.325, 0.25, 0.38)
@@ -16,6 +18,8 @@ Shader "ColonyFlow/Hidden Colony"
         _SmallQuestionSize ("Small Question Size", Vector) = (0.11, 0.18, 0, 0)
         _SmallQuestionOutlineSize ("Small Question Outline", Range(0, 0.04)) = 0.01
         _SmallQuestionRotationStrength ("Small Question Rotation", Range(0, 2)) = 1
+        _SmallQuestionInset ("Small Question Edge Inset", Range(0, 0.2)) = 0.08
+        _SmallQuestionThreshold ("Small Question Threshold", Range(0, 1)) = 0.45
         _Ambient ("Ambient", Range(0, 1)) = 0.72
         _LightStrength ("Main Light Strength", Range(0, 1)) = 0.38
     }
@@ -55,8 +59,10 @@ Shader "ColonyFlow/Hidden Colony"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _BaseColor;
+                float4 _FaceBounds;
                 half4 _TopColor;
                 half4 _SideColor;
+                half4 _MainQuestionColor;
                 half4 _SymbolColor;
                 half4 _SymbolOutlineColor;
                 float4 _QuestionSourceRect;
@@ -67,6 +73,8 @@ Shader "ColonyFlow/Hidden Colony"
                 float4 _SmallQuestionSize;
                 half _SmallQuestionOutlineSize;
                 half _SmallQuestionRotationStrength;
+                half _SmallQuestionInset;
+                half _SmallQuestionThreshold;
                 half _Ambient;
                 half _LightStrength;
             CBUFFER_END
@@ -125,26 +133,19 @@ Shader "ColonyFlow/Hidden Colony"
                     luminance);
             }
 
-            half3 QuestionColor(float2 faceUv)
-            {
-                float2 placementUv = (faceUv - _QuestionPlacement.xy) /
-                    _QuestionPlacement.zw;
-                float2 sourceUv = _QuestionSourceRect.xy +
-                    placementUv * _QuestionSourceRect.zw;
-                return SAMPLE_TEXTURE2D(
-                    _QuestionTex, sampler_QuestionTex, sourceUv).rgb;
-            }
-
             half QuestionMaskAt(
                 float2 faceUv,
                 float2 center,
                 float2 size,
                 half rotation)
             {
-                float2 placementUv = (faceUv - center) / size;
                 half sine;
                 half cosine;
                 sincos(rotation * _SmallQuestionRotationStrength, sine, cosine);
+                // Clamp the entire rotated glyph, not just its center, inside the top face.
+                float2 margin = min(0.49, _SmallQuestionInset + 0.5 * size * (abs(sine) + abs(cosine)));
+                center = clamp(center, margin, 1.0 - margin);
+                float2 placementUv = (faceUv - center) / size;
                 placementUv = float2(
                     cosine * placementUv.x + sine * placementUv.y,
                     -sine * placementUv.x + cosine * placementUv.y) + 0.5;
@@ -156,14 +157,19 @@ Shader "ColonyFlow/Hidden Colony"
                     _QuestionTex, sampler_QuestionTex, sourceUv).rgb;
                 half luminance = dot(source, half3(0.299, 0.587, 0.114));
                 return inside * smoothstep(
-                    _QuestionThreshold,
-                    _QuestionThreshold + _QuestionFeather,
+                    _SmallQuestionThreshold,
+                    _SmallQuestionThreshold + _QuestionFeather,
                     luminance);
             }
 
             half SmallQuestionMask(float2 faceUv, half expansion)
             {
                 float2 baseSize = _SmallQuestionSize.xy;
+                // Size is a bounding box; preserve the source glyph's aspect instead
+                // of stretching a tall question mark into a wide smear.
+                float sourceAspect = _QuestionSourceRect.z / max(_QuestionSourceRect.w, 0.00001);
+                baseSize = float2(min(baseSize.x, baseSize.y * sourceAspect),
+                    min(baseSize.y, baseSize.x / max(sourceAspect, 0.00001)));
                 half mask = QuestionMaskAt(
                     faceUv, float2(0.16, 0.76),
                     baseSize * float2(0.88, 0.9) + expansion * 2.0, -0.38h);
@@ -199,7 +205,11 @@ Shader "ColonyFlow/Hidden Colony"
                 half3 normalWS = normalize(input.normalWS);
                 half topBlend = smoothstep(0.15h, 0.88h, normalOS.y);
                 half symbolSurface = smoothstep(0.92h, 0.995h, normalOS.y);
-                float2 faceUv = input.positionOS.xz + 0.5;
+                // Edge decals cover the upper bevel too. A flat-only mask cuts the
+                // hooks/dots apart on the new mesh's smoothed vertex normals.
+                half smallSymbolSurface = smoothstep(0.35h, 0.65h, normalOS.y);
+                float2 faceUv = (input.positionOS.xz - _FaceBounds.xy) /
+                    max(_FaceBounds.zw, float2(0.00001, 0.00001));
 
                 Light mainLight = GetMainLight(input.shadowCoord);
                 half ndotl = saturate(dot(normalWS, mainLight.direction));
@@ -226,17 +236,17 @@ Shader "ColonyFlow/Hidden Colony"
                 half smallQuestionFill = SmallQuestionMask(faceUv, 0.0h);
                 half smallQuestionOutline = SmallQuestionMask(
                     faceUv, _SmallQuestionOutlineSize);
-                half symbolOutline = max(questionExpanded, smallQuestionOutline) *
-                    symbolSurface;
+                half symbolOutline = max(questionExpanded * symbolSurface,
+                    smallQuestionOutline * smallSymbolSurface);
                 questionFill *= symbolSurface;
-                smallQuestionFill *= symbolSurface;
+                smallQuestionFill *= smallSymbolSurface;
                 half3 symbolLighting = lerp(1.0h.xxx, saturate(lighting), 0.35h);
 
                 color = lerp(color, _SymbolOutlineColor.rgb * symbolLighting,
                     symbolOutline);
                 color = lerp(color, _SymbolColor.rgb * symbolLighting,
                     smallQuestionFill);
-                color = lerp(color, QuestionColor(faceUv) * symbolLighting,
+                color = lerp(color, _MainQuestionColor.rgb * symbolLighting,
                     questionFill);
                 color = MixFog(color, input.fogFactor);
                 return half4(color, 1.0h);
